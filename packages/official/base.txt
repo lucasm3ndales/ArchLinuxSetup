@@ -1,17 +1,12 @@
 base-devel
 git
-vim
 neovim
 curl
-wget
 zip
 unzip
 jq
-openssh
 rsync
 ripgrep
 fd
 fastfetch
-linux-firmware
 terminus-font
-zram-generator

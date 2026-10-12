@@ -1,11 +1,5 @@
-intel-ucode
 linux-headers
 linux-zen-headers
-mesa
-vulkan-intel
-intel-media-driver
-btrfs-progs
-snapper
 snap-pac
 btrfs-assistant
 cryptsetup

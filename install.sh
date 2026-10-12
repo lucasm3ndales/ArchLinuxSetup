@@ -12,7 +12,7 @@ Comandos:
   packages    Planeja ou instala pacotes por categoria e perfil
   aur         Planeja ou instala o paru para acessar a AUR
   xfce        Planeja ou aplica o visual do Xfce na sessão do usuário
-  system      Planeja ou aplica Ly e zram com zstd no Arch
+  system      Planeja ou aplica a rolagem natural do touchpad no Xorg
   storage     Inspeciona ou prepara o HD secundário LUKS/ext4
   help        Mostra esta ajuda
 

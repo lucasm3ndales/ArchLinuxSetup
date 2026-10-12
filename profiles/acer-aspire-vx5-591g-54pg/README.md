@@ -11,7 +11,7 @@ O SSD é alvo do archinstall. A configuração desejada é LUKS, Btrfs com `comp
 | Hostname e usuário | `dev-machine`; usuário `dev` com acesso a `sudo` |
 | Localização | Espelhos brasileiros; `America/Sao_Paulo`; `en_US.UTF-8`; teclado ABNT2 |
 | Rede e áudio | NetworkManager; PipeWire |
-| Interface | Xfce X11; Ly configurado posteriormente por `system apply` |
+| Interface | Xfce X11; Ly instalado e configurado pelo archinstall |
 | Console | Fonte `ter-v16n` do pacote `terminus-font` |
 
 O [JSON salvo](../../archinstall/user_configuration.json) registra escolhas do instalador, mas não a senha nem a configuração de criptografia do SSD. Depois do primeiro boot, confirme LUKS/Btrfs com `lsblk -f`, os subvolumes e configurações do Snapper, zram e as entradas do Limine para os dois kernels. `system apply` não configura o boot nem o desbloqueio do SSD. Snapshots do Snapper ainda não têm integração de boot pelo Limine neste projeto.
@@ -20,11 +20,11 @@ O [JSON salvo](../../archinstall/user_configuration.json) registra escolhas do i
 
 | Categoria | Pacotes específicos |
 | --- | --- |
-| `base` | `intel-ucode`, headers de `linux` e `linux-zen`, Mesa/Vulkan Intel, driver Intel VA-API, Btrfs, Snapper, `snap-pac`, Btrfs Assistant, `cryptsetup` e `e2fsprogs`. |
-| `desktop` | `bluez`, `bluez-utils` e `blueman`. |
+| `base` | Headers de `linux` e `linux-zen`, `snap-pac`, Btrfs Assistant, `cryptsetup` e `e2fsprogs`. |
+| `desktop` | `blueman`. |
 | `gaming` | `lib32-mesa` e `lib32-vulkan-intel`. |
 
-`zram-generator` e `xf86-input-libinput` pertencem às listas compartilhadas. O perfil ainda não instala driver NVIDIA.
+`xf86-input-libinput` pertence à lista compartilhada. O archinstall já selecionou microcódigo Intel, Mesa/Vulkan Intel, driver Intel VA-API, Btrfs, Snapper, Bluetooth, Ly e zram; os scripts não reinstalam esses pacotes nem reconfiguram Ly ou zram. O perfil ainda não instala driver NVIDIA.
 
 ## Pendências de hardware
 

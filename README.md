@@ -1,6 +1,6 @@
 # ArchLinuxSetup
 
-Scripts de pós-instalação do Arch Linux. As listas de pacotes são compartilhadas; o perfil adiciona apenas o que depende do computador. Cada etapa tem um comando `plan` para revisão e um `apply` para execução.
+Scripts de pós-instalação do Arch Linux. As listas de pacotes acrescentam aplicativos e utilitários à instalação registrada em [user_configuration.json](archinstall/user_configuration.json): Xfce, rede, áudio, Bluetooth, fontes, gráficos e Snapper já foram selecionados no archinstall. O perfil adiciona apenas o que depende do computador. Cada etapa tem um comando `plan` para revisão e um `apply` para execução.
 
 O projeto **não instala o Arch no SSD**. Essa parte é feita pelo archinstall. Também não configura o boot, o driver NVIDIA, a recuperação pelo Snapper ou ajustes de energia.
 
@@ -43,14 +43,14 @@ Os números são independentes. Esses snapshots não cobrem `/boot`, `/var/log` 
 ./install.sh xfce apply
 ```
 
-`aur apply` prepara o `paru` para as categorias com pacotes AUR. Se `paru` ou `yay` já estiver instalado, `packages apply` pode usá-lo. Execute `system apply` após instalar `desktop`; execute `xfce apply` dentro de uma sessão X11 do Xfce. O HD secundário tem um procedimento separado em [Armazenamento](#armazenamento-do-acer).
+`aur apply` prepara o `paru` para as categorias com pacotes AUR. Se `paru` ou `yay` já estiver instalado, `packages apply` pode usá-lo. Execute `system apply` após instalar `desktop`; execute `xfce apply` dentro de uma sessão X11 do Xfce. Ly e zram já vêm do archinstall neste notebook; os scripts não os instalam nem reconfiguram. O HD secundário tem um procedimento separado em [Armazenamento](#armazenamento-do-acer).
 
 | Comando | O que faz |
 | --- | --- |
 | `diagnose` | Mostra informações do sistema; não altera nada. |
 | `aur plan/apply` | Planeja ou instala o `paru`. |
 | `packages plan/apply` | Mostra ou instala os pacotes selecionados. |
-| `system plan/apply` | Configura Ly, zram e rolagem natural do touchpad no Xorg. |
+| `system plan/apply` | Configura a rolagem natural do touchpad no Xorg. |
 | `xfce plan/apply` | Configura tema, fontes, painéis e indicador das teclas Lock. |
 | `storage plan/apply/unlock` | Inspeciona, prepara ou desbloqueia o HD secundário do Acer. |
 
@@ -60,13 +60,13 @@ Os números são independentes. Esses snapshots não cobrem `/boot`, `/var/log` 
 
 | Categoria | Principais pacotes |
 | --- | --- |
-| `base` | `base-devel`, Git, curl, wget, utilitários de terminal, firmware, fonte Terminus e `zram-generator`. O perfil Acer acrescenta microcódigo Intel, headers dos kernels, Btrfs, Snapper e ferramentas de criptografia. |
+| `base` | `base-devel`, Git, curl, utilitários de terminal e fonte Terminus. O perfil Acer acrescenta headers dos kernels, `snap-pac`, Btrfs Assistant e ferramentas de criptografia. |
 | `development` | GCC, Clang, CMake, depuradores, Python e pip, fnm, Rust/Cargo, .NET 10, Podman, DBeaver, Zed, Kleopatra e Bruno (AUR). |
-| `desktop` | Xfce/Xorg, Ly, libinput, PipeWire, fontes e temas, mensageiros, qBittorrent, `xdg-utils`, Brave, VSCodium e Spotify (os três últimos pela AUR). O perfil Acer acrescenta Bluetooth. |
-| `gaming` | Steam, GameMode, MangoHud e fontes. O perfil Acer acrescenta bibliotecas gráficas Intel de 32 bits. |
+| `desktop` | Utilitários Xorg, libinput, Docklike, temas, fontes, mensageiros, qBittorrent, ALSA, portal GTK, Brave, VSCodium e Spotify (os três últimos pela AUR). O perfil Acer acrescenta Blueman. |
+| `gaming` | Steam, GameMode e MangoHud. O perfil Acer acrescenta bibliotecas gráficas Intel de 32 bits. |
 | `emulation` | RetroArch, Dolphin, PCSX2 e RPCS3; os dois últimos vêm da AUR. |
 
-Sem categorias explícitas, `packages` usa `base development desktop`. Ao indicar uma ou mais categorias, instala somente as selecionadas. Sem `--profile`, usa somente as listas compartilhadas. O perfil Acer nunca é escolhido automaticamente.
+Sem categorias explícitas, `packages` usa `base development desktop`. Ao indicar uma ou mais categorias, instala somente as selecionadas. Sem `--profile`, usa somente as listas compartilhadas. O perfil Acer nunca é escolhido automaticamente. As listas pressupõem uma instalação inicial com as escolhas do JSON salvo; em outro computador, confirme esses componentes antes de executar os módulos que dependem deles.
 
 Você pode instalar em etapas:
 
@@ -85,11 +85,11 @@ Numa instalação nova, `aur apply` instala `git` e `base-devel` pelos repositó
 
 ## Sistema e Xfce
 
-`system apply` exige Ly, Xfce X11, libinput e zram-generator instalados. Faz backup de `/etc/ly/config.ini` antes de editá-lo, habilita Ly no tty1 e mantém tty2 livre. Também configura zram com zstd para metade da RAM e cria uma regra Xorg restrita a touchpads para rolagem natural. A zram entra em vigor no próximo boot; a regra do touchpad, na próxima sessão X11. Se outro gerenciador de login estiver habilitado, o comando para antes de alterar arquivos.
+`system apply` exige Xorg e libinput instalados. Cria uma regra Xorg restrita a touchpads para rolagem natural e salva a regra anterior, se houver. A mudança entra em vigor na próxima sessão X11. O comando não altera o gerenciador de login nem a configuração de zram feita pelo archinstall.
 
 `xfce apply` exige uma sessão X11 do Xfce. Faz backup em `~/.local/state/archlinuxsetup/backups/`, aplica Materia-dark, Papirus-Dark, cursor Capitaine e fonte Inter. Configura a dock inferior com Docklike e menu do Arch; no painel superior, usa Genmon para indicar Caps, Num e Scroll Lock. Repetir o comando cria outro backup, sem duplicar esses plugins.
 
-Após reiniciar, confira `zramctl`, `swapon --show` e o touchpad. Verifique também `systemctl is-enabled NetworkManager`; se necessário, habilite-o com `sudo systemctl enable --now NetworkManager`. O módulo `system` não altera Limine, LUKS, partições ou Snapper.
+No primeiro boot, confira a zram do archinstall com `zramctl` e `swapon --show`. Após `system apply`, confira a rolagem do touchpad numa nova sessão X11. Verifique também `systemctl is-enabled NetworkManager`; se necessário, habilite-o com `sudo systemctl enable --now NetworkManager`. O módulo `system` não altera Limine, LUKS, partições ou Snapper.
 
 ## Armazenamento do Acer
 
