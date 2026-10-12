@@ -49,7 +49,7 @@ As categorias compartilhadas ficam fora dos perfis. Cada máquina futura ganhar�
 
 | Categoria | Conteúdo |
 | --- | --- |
-| `base` | Git, Vim, Neovim, fastfetch, firmware Linux, fonte Terminus para console, zram-generator e utilitários. O perfil Acer acrescenta Btrfs, Snapper e Btrfs Assistant. |
+| `base` | Git, Vim, Neovim, fastfetch, firmware Linux, fonte Terminus para console, zram-generator e utilitários. O perfil Acer acrescenta headers para os kernels `linux` e `linux-zen`, Btrfs, Snapper e Btrfs Assistant. |
 | `development` | Compiladores C/C++, CMake, depuradores, fnm, Rust/Cargo, .NET 10, Podman, DBeaver, Zed, Kleopatra para certificados e Bruno (AUR). |
 | `desktop` | Xfce, Ly, libinput, Genmon para Caps/Num/Scroll Lock, rede, áudio PipeWire, temas, ícones, cursores, fontes Inter/Fira Code/Hack, Discord, Telegram, qBittorrent e, pela AUR, Brave, VSCodium e Spotify. O perfil Acer acrescenta Bluetooth. |
 | `gaming` | Steam, GameMode, MangoHud e fontes; opcional. |
@@ -109,18 +109,18 @@ Para revisar um novo perfil, execute `./install.sh packages plan --profile outro
 1. **Diagnóstico real:** confirmar as GPUs, placa Wi-Fi/Bluetooth, áudio, driver carregado, dispositivo do touchpad, tipo de sessão e layout Btrfs. O proprietário confirmou o modelo VX5-591G-54PG com i5-7300HQ de 7ª geração, SSD NVMe de 256 GB adicionado e HD de 1 TB presente mas sem uso. Confirmar os caminhos e UUIDs no próprio notebook.
 2. **Touchpad no Xfce:** a rolagem natural já é configurada como padrão pelo módulo `system`; confirmar no aparelho que libinput detecta o touchpad e testar toque para clicar, rolagem com dois dedos e rejeição da palma.
 3. **Gráficos híbridos:** manter a GPU Intel para o desktop e usar a NVIDIA sob demanda com PRIME. Para a GTX 1050 (Pascal), verificar a série proprietária legada `nvidia-580xx-dkms`; o driver NVIDIA principal 590+ não oferece suporte a Pascal. Evitar automatizar a troca antes de confirmar GPU, kernel e pacotes instalados.
-4. **Btrfs e Snapper:** verificar subvolumes, montagem de `/.snapshots`, configuração `root`, política de retenção e procedimento de recuperação. O Btrfs Assistant oferece interface gráfica; `snap-pac` cria snapshots em transações do pacman quando a configuração Snapper existe. Snapshot local não substitui backup externo.
+4. **Btrfs e Snapper:** verificar subvolumes, montagem de `/.snapshots`, configuração `root`, política de retenção e procedimento de recuperação. O **Btrfs Assistant**, já incluído no perfil Acer, oferece interface gráfica para criar, consultar e restaurar snapshots do Snapper; abra-o pelo menu de aplicativos do Xfce. `snap-pac` cria snapshots em transações do pacman quando a configuração Snapper existe. A integração para iniciar snapshots pelo Limine ainda precisa de configuração separada. Snapshot local não substitui backup externo.
 5. **Notebook e programas:** configurar Wi-Fi/Bluetooth, áudio, teclas de função, suspensão, bateria e os aplicativos realmente usados. Escolher um único gerenciador de energia após medir o comportamento do aparelho.
 
 O [perfil Acer](profiles/acer-aspire-vx5-591g-54pg/README.md) registra os pacotes de hardware já selecionados e os candidatos que dependem do diagnóstico. Não é necessário baixar drivers Windows da Acer para o Arch; funções específicas da marca podem usar o módulo `acer_wmi` incluído no kernel Linux.
 
 ## Instalação base planejada no archinstall
 
-No Acer, o Arch será instalado no **SSD NVMe de 256 GB** com LUKS, Btrfs e compressão `zstd`, Snapper e Limine. Não selecione o HD de 1 TB como alvo no archinstall; ele será preparado depois, também com LUKS. A compressão Btrfs `zstd` e a swap zram com `zstd` são ajustes distintos.
+No Acer, o Arch será instalado no **SSD NVMe de 256 GB** com LUKS, Btrfs e compressão `zstd`, Snapper e Limine. Selecione **os dois kernels `linux` e `linux-zen` no archinstall**: o instalador prepara as entradas de boot para os kernels escolhidos. Mantenha `linux` como alternativa de boot e teste o Zen nos jogos; o ganho de desempenho depende do jogo e do hardware. Não selecione o HD de 1 TB como alvo no archinstall; ele será preparado depois, também com LUKS. A compressão Btrfs `zstd` e a swap zram com `zstd` são ajustes distintos.
 
 Preferências da instalação: hostname `dev-machine`, usuários `root` e `dev` (este no grupo com acesso a `sudo`), espelhos brasileiros, timezone `America/Sao_Paulo`, locale `en_US.UTF-8`, teclado ABNT2 (escolha o mapa de console disponível no instalador), fonte `ter-v16n` do pacote `terminus-font`, PipeWire e NetworkManager. O Ly será habilitado pelo módulo `system` após instalar `desktop`; não é preciso selecionar outro gerenciador de login no instalador. Confira as opções oferecidas pela versão do archinstall antes de confirmar.
 
-Após o primeiro boot, execute `./install.sh diagnose`. Confira que `/` está no Btrfs sobre LUKS, que `/.snapshots` está montado como esperado, que `snapper list-configs` mostra `root` e que o Limine inicia o sistema. `system apply` não altera Limine, desbloqueio LUKS do SSD ou subvolumes Btrfs.
+Após o primeiro boot, execute `./install.sh diagnose`. Confira que `/` está no Btrfs sobre LUKS, que `/.snapshots` está montado como esperado, que `snapper list-configs` mostra `root` e que o Limine oferece entradas funcionais para `linux` e `linux-zen`. O `pacman` atualiza os dois kernels; este projeto não instala um gerenciador gráfico de kernels. Os pacotes `linux-headers` e `linux-zen-headers` do perfil Acer preparam a compilação de módulos DKMS para ambos, necessária quando configurarmos a NVIDIA proprietária. `system apply` não altera Limine, desbloqueio LUKS do SSD ou subvolumes Btrfs.
 
 ## HD de 1 TB para dados e jogos
 

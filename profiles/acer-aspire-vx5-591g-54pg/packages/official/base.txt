@@ -1,4 +1,6 @@
 intel-ucode
+linux-headers
+linux-zen-headers
 mesa
 vulkan-intel
 intel-media-driver

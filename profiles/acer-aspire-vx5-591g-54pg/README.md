@@ -17,7 +17,7 @@ Os IDs dos dispositivos e drivers carregados serão conferidos com `./install.sh
 
 ## Pacotes já selecionados
 
-- `base`: `intel-ucode`, `mesa`, `vulkan-intel`, `intel-media-driver` para VA-API, `btrfs-progs`, `snapper`, `snap-pac`, `btrfs-assistant`, `cryptsetup` e `e2fsprogs`. `zram-generator` e `xf86-input-libinput` agora fazem parte das listas compartilhadas.
+- `base`: `intel-ucode`, `linux-headers`, `linux-zen-headers`, `mesa`, `vulkan-intel`, `intel-media-driver` para VA-API, `btrfs-progs`, `snapper`, `snap-pac`, `btrfs-assistant`, `cryptsetup` e `e2fsprogs`. `zram-generator` e `xf86-input-libinput` agora fazem parte das listas compartilhadas.
 - `gaming`: `lib32-mesa` e `lib32-vulkan-intel` para jogos de 32 bits.
 - `desktop`: `bluez`, `bluez-utils` e `blueman` para Bluetooth.
 
@@ -35,11 +35,11 @@ Os IDs dos dispositivos e drivers carregados serão conferidos com `./install.sh
 
 O módulo `acer_wmi` faz parte do kernel Linux e pode oferecer teclas especiais e controles Acer. Ele não é um pacote de driver proprietário da Acer. As páginas de suporte Acer para a série VX5-591G apresentam downloads voltados ao Windows; não há um pacote Acer para Linux que deva ser instalado automaticamente. Evite parâmetros de kernel, BIOS ou controle manual de ventoinhas sem um problema reproduzido neste aparelho.
 
-O driver NVIDIA principal 590+ deixou de atender Pascal. A troca pelo ramo proprietário legado requer uma etapa separada e revisável porque mexe no módulo do kernel e pode afetar o login gráfico. Para DKMS, instale os headers correspondentes a **cada kernel** usado (`linux-headers`, `linux-lts-headers` etc.). A categoria de pacotes atual não instala nem substitui a NVIDIA.
+O driver NVIDIA principal 590+ deixou de atender Pascal. A troca pelo ramo proprietário legado requer uma etapa separada e revisável porque mexe no módulo do kernel e pode afetar o login gráfico. Para DKMS, mantenha os headers correspondentes a **cada kernel** usado: o perfil inclui `linux-headers` e `linux-zen-headers`. A categoria de pacotes atual não instala nem substitui a NVIDIA.
 
 ## Instalação e primeiro boot
 
-Use archinstall no SSD NVMe com LUKS, Btrfs `compress=zstd`, Snapper, Limine, espelhos brasileiros, timezone `America/Sao_Paulo`, locale `en_US.UTF-8`, teclado ABNT2, hostname `dev-machine`, PipeWire e NetworkManager. Crie `dev` com acesso a `sudo`; `root` permanece como conta administrativa. A fonte de console desejada é `ter-v16n` (Terminus 16). Confira o mapa ABNT2 e a configuração da fonte após instalar o pacote `terminus-font`.
+Use archinstall no SSD NVMe com LUKS, Btrfs `compress=zstd`, Snapper, Limine e **ambos os kernels `linux` e `linux-zen`**. Configure espelhos brasileiros, timezone `America/Sao_Paulo`, locale `en_US.UTF-8`, teclado ABNT2, hostname `dev-machine`, PipeWire e NetworkManager. Crie `dev` com acesso a `sudo`; `root` permanece como conta administrativa. A fonte de console desejada é `ter-v16n` (Terminus 16). Confira o mapa ABNT2, a fonte e as duas entradas de boot após a instalação.
 
 Após o boot, confira os subvolumes Btrfs, a montagem de `/.snapshots`, `snapper list-configs`, zram e os serviços com `./install.sh diagnose`. O `system apply` habilita Ly no tty1 e cria zram com zstd. Ele oculta as sessões shell/xinitrc/Wayland do Ly e mantém tty2 livre. O Limine e a integração de snapshots inicializáveis precisam de validação separada.
 

@@ -90,6 +90,7 @@ fi
 section 'Pacotes relevantes instalados'
 if command -v pacman >/dev/null 2>&1; then
   for package in \
+    linux linux-headers linux-zen linux-zen-headers dkms limine \
     mesa vulkan-intel intel-media-driver xf86-video-intel \
     xf86-input-libinput xf86-input-synaptics \
     nvidia nvidia-open nvidia-dkms nvidia-580xx-dkms nvidia-utils nvidia-prime \
