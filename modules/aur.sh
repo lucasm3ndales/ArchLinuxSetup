@@ -27,11 +27,12 @@ EOF
 [[ -r /etc/os-release ]] || fail 'Não foi possível identificar a distribuição.'
 os_id=$(awk -F= '$1 == "ID" { gsub(/"/, "", $2); print $2 }' /etc/os-release)
 [[ "$os_id" == arch ]] || fail 'Este comando só pode ser aplicado no Arch Linux.'
-for command_name in sudo pacman git mktemp; do
+for command_name in sudo pacman mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || fail "Comando ausente: $command_name"
 done
 
 sudo pacman -Syu --needed git base-devel
+command -v git >/dev/null 2>&1 || fail 'git não encontrado após instalar git.'
 command -v makepkg >/dev/null 2>&1 || fail 'makepkg não encontrado após instalar base-devel.'
 
 build_dir=$(mktemp -d -t archlinuxsetup-paru.XXXXXXXX)

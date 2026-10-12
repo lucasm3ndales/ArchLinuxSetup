@@ -29,3 +29,4 @@ pipewire-alsa
 wireplumber
 alsa-utils
 xdg-desktop-portal-gtk
+xdg-utils

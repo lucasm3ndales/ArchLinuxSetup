@@ -142,17 +142,25 @@ fi
 
 if [[ -n "${selected[desktop]:-}" && -f /usr/share/applications/brave-browser.desktop ]]; then
   if command -v xdg-settings >/dev/null 2>&1 && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
-    xdg-settings set default-web-browser brave-browser.desktop || printf 'Defina o Brave como navegador padrão nas preferências do desktop.\n'
+    current_browser=$(xdg-settings get default-web-browser 2>/dev/null || true)
+    if [[ "$current_browser" != brave-browser.desktop ]]; then
+      xdg-settings set default-web-browser brave-browser.desktop || printf 'Defina o Brave como navegador padrão nas preferências do desktop.\n'
+    fi
   else
     printf 'Na sessão gráfica, execute: xdg-settings set default-web-browser brave-browser.desktop\n'
   fi
 fi
 
 if [[ -n "${selected[development]:-}" ]]; then
-  printf '\nInstalando a versão LTS do Node.js com fnm.\n'
   eval "$(fnm env --shell bash)"
-  fnm install --lts --use
-  fnm default "$(fnm current)"
+  default_node=$(fnm default 2>/dev/null || true)
+  if [[ -n "$default_node" ]]; then
+    printf '\nNode.js padrão do fnm já configurado: %s.\n' "$default_node"
+  else
+    printf '\nInstalando a versão LTS do Node.js com fnm.\n'
+    fnm install --lts --use
+    fnm default "$(fnm current)"
+  fi
 
   shell_name="${SHELL:-/bin/bash}"
   shell_name="${shell_name##*/}"

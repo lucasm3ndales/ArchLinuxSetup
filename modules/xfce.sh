@@ -156,9 +156,8 @@ if [[ ! "$menu_id" =~ ^[0-9]+$ ]]; then
 fi
 
 backup_base="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/backups"
-backup_dir="$backup_base/xfce-$(date +%Y%m%d-%H%M%S)"
-[[ ! -e "$backup_dir" ]] || fail "Backup já existe: $backup_dir"
-mkdir -p -- "$backup_dir"
+mkdir -p -- "$backup_base"
+backup_dir=$(mktemp -d -- "$backup_base/xfce-$(date +%Y%m%d-%H%M%S)-XXXXXX")
 for channel in xsettings xfwm4 xfce4-panel; do
   xfconf-query -c "$channel" -lv > "$backup_dir/$channel.txt" || true
   source_file="${XDG_CONFIG_HOME:-$HOME/.config}/xfce4/xfconf/xfce-perchannel-xml/$channel.xml"

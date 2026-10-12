@@ -4,6 +4,8 @@ cmake
 gdb
 lldb
 pkgconf
+python
+python-pip
 fnm
 rust
 dotnet-sdk-10.0

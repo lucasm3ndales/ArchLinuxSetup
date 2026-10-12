@@ -1,55 +1,44 @@
 # Acer Aspire VX5-591G-54PG
 
-Modelo e especificações de fábrica confirmados pelo proprietário:
+O proprietário confirmou o modelo, CPU Intel Core i5-7300HQ, GTX 1050, 8 GB de RAM, SSD NVMe de 256 GB adicionado e HD de 1 TB. IDs dos dispositivos, modelos dos discos e drivers carregados ainda precisam ser conferidos com `./install.sh diagnose` no notebook. Não registre número de série ou SNID.
 
-| Componente | Configuração original |
+## Instalação do Arch
+
+O SSD é alvo do archinstall. A configuração desejada é LUKS, Btrfs com `compress=zstd`, Snapper, Limine e kernels `linux` e `linux-zen`. O HD de 1 TB fica fora do archinstall e será preparado separadamente por `storage apply`.
+
+| Opção | Valor escolhido |
 | --- | --- |
-| Processador | Intel Core i5-7300HQ, 7ª geração, 4 núcleos, até 3,5 GHz; GPU Intel integrada. |
-| GPU dedicada | NVIDIA GeForce GTX 1050 com 4 GB GDDR5. |
-| Memória | 8 GB DDR4, expansível até 32 GB. |
-| Armazenamento | HD de 1 TB. |
-| Tela | 15,6 polegadas Full HD (1920 × 1080). |
-| Sistema original | Windows 10. |
+| Hostname e usuário | `dev-machine`; usuário `dev` com acesso a `sudo` |
+| Localização | Espelhos brasileiros; `America/Sao_Paulo`; `en_US.UTF-8`; teclado ABNT2 |
+| Rede e áudio | NetworkManager; PipeWire |
+| Interface | Xfce X11; Ly configurado posteriormente por `system apply` |
+| Console | Fonte `ter-v16n` do pacote `terminus-font` |
 
-**Alteração no aparelho atual:** SSD NVMe de 256 GB destinado ao Arch Linux. O proprietário o descreveu como “NVMe 2.0”; o modelo do SSD e a interface serão conferidos no diagnóstico. O HD de 1 TB permanece instalado e está sem uso. Será reparticionado separadamente para dados e jogos com LUKS2 + ext4 após instalar o Arch no SSD. O script exige o caminho real `/dev/disk/by-id/...` e confirmação digitada; não presume `/dev/sda` nem age sobre o HD no archinstall.
+O [JSON salvo](../../archinstall/user_configuration.json) registra escolhas do instalador, mas não a senha nem a configuração de criptografia do SSD. Depois do primeiro boot, confirme LUKS/Btrfs com `lsblk -f`, os subvolumes e configurações do Snapper, zram e as entradas do Limine para os dois kernels. `system apply` não configura o boot nem o desbloqueio do SSD. Snapshots do Snapper ainda não têm integração de boot pelo Limine neste projeto.
 
-Os IDs dos dispositivos e drivers carregados serão conferidos com `./install.sh diagnose` no notebook antes de aplicar ajustes específicos.
+## Pacotes do perfil
 
-## Pacotes já selecionados
+| Categoria | Pacotes específicos |
+| --- | --- |
+| `base` | `intel-ucode`, headers de `linux` e `linux-zen`, Mesa/Vulkan Intel, driver Intel VA-API, Btrfs, Snapper, `snap-pac`, Btrfs Assistant, `cryptsetup` e `e2fsprogs`. |
+| `desktop` | `bluez`, `bluez-utils` e `blueman`. |
+| `gaming` | `lib32-mesa` e `lib32-vulkan-intel`. |
 
-- `base`: `intel-ucode`, `linux-headers`, `linux-zen-headers`, `mesa`, `vulkan-intel`, `intel-media-driver` para VA-API, `btrfs-progs`, `snapper`, `snap-pac`, `btrfs-assistant`, `cryptsetup` e `e2fsprogs`. `zram-generator` e `xf86-input-libinput` agora fazem parte das listas compartilhadas.
-- `gaming`: `lib32-mesa` e `lib32-vulkan-intel` para jogos de 32 bits.
-- `desktop`: `bluez`, `bluez-utils` e `blueman` para Bluetooth.
+`zram-generator` e `xf86-input-libinput` pertencem às listas compartilhadas. O perfil ainda não instala driver NVIDIA.
 
-## Hardware a verificar antes de automatizar
+## Pendências de hardware
 
-| Área | Pacotes ou configuração candidatos | Verificação necessária |
-| --- | --- | --- |
-| NVIDIA Pascal | `nvidia-580xx-dkms` (AUR), utilitários da mesma série, `nvidia-prime`, `dkms` e headers do kernel instalado; biblioteca NVIDIA de 32 bits para Steam | Confirmar ID PCI da GTX 1050, kernel, Secure Boot e conflitos com driver atual. Usar Intel no desktop e PRIME nos jogos. |
-| Wi-Fi | Firmware compatível com o chipset detectado; se for Intel, `linux-firmware-intel` | Conferir `lspci -nnk` e firmware carregado. Unidades da série podem ter placas de rede diferentes. |
-| Bluetooth | `bluez`, `bluez-utils` e serviço `bluetooth.service` | Confirmar o adaptador em `lsusb`/`rfkill` e testar áudio/periféricos. |
-| Áudio | `pipewire`, `pipewire-audio`, `pipewire-pulse`, `pipewire-alsa`, `wireplumber`, `alsa-utils` | Conferir controlador, microfone, alto-falantes, fone e HDMI. Só adicionar `sof-firmware` se o dispositivo exigir. |
-| Touchpad | `xf86-input-libinput` no desktop compartilhado; rolagem natural por regra Xorg do módulo `system` | Conferir se o dispositivo aparece em `/proc/bus/input/devices` e `xinput`. Testar Fn+F7 caso esteja desligado. |
-| Energia e teclas | `xfce4-power-manager`, suporte ACPI/WMI do kernel, eventual controle de brilho | Testar suspensão, tampa, bateria, brilho, teclado iluminado e retorno do suspend antes de ajustar serviços ou parâmetros. |
-| SSD NVMe | Driver NVMe do kernel; `smartmontools` e `nvme-cli` só para monitoramento | Conferir modelo, saúde e sistema de arquivos. Não requer driver Acer. |
+| Área | Conferir antes de automatizar |
+| --- | --- |
+| NVIDIA | ID PCI, kernels, headers, Secure Boot e driver atual. Escolher um ramo compatível com Pascal e testar PRIME e bibliotecas de 32 bits no notebook. |
+| Wi-Fi/Bluetooth | Chipset, firmware, `rfkill`, áudio e periféricos. Habilitar `bluetooth.service` somente após confirmar o adaptador. |
+| Áudio | Microfone, alto-falantes, fone e saída HDMI. Instalar firmware adicional só se o dispositivo exigir. |
+| Touchpad | Detecção pelo libinput, Fn+F7, toque para clicar, rolagem com dois dedos e rejeição da palma. A rolagem natural compartilhada vem de `system apply`. |
+| Energia e teclas | Suspensão, tampa, bateria, brilho, iluminação do teclado e retorno do suspend. |
+| SSD e Snapper | Modelo e saúde do SSD; subvolumes, montagens, retenção de snapshots e procedimento de recuperação. |
 
-O módulo `acer_wmi` faz parte do kernel Linux e pode oferecer teclas especiais e controles Acer. Ele não é um pacote de driver proprietário da Acer. As páginas de suporte Acer para a série VX5-591G apresentam downloads voltados ao Windows; não há um pacote Acer para Linux que deva ser instalado automaticamente. Evite parâmetros de kernel, BIOS ou controle manual de ventoinhas sem um problema reproduzido neste aparelho.
+O módulo `acer_wmi` já faz parte do kernel. Não adicione parâmetros de kernel ou controle manual de ventoinhas sem um problema reproduzido no aparelho. Os headers para os dois kernels estão na categoria `base` para uma futura configuração DKMS.
 
-O driver NVIDIA principal 590+ deixou de atender Pascal. A troca pelo ramo proprietário legado requer uma etapa separada e revisável porque mexe no módulo do kernel e pode afetar o login gráfico. Para DKMS, mantenha os headers correspondentes a **cada kernel** usado: o perfil inclui `linux-headers` e `linux-zen-headers`. A categoria de pacotes atual não instala nem substitui a NVIDIA.
+## HD secundário
 
-## Instalação e primeiro boot
-
-Use archinstall no SSD NVMe com LUKS, Btrfs `compress=zstd`, Snapper, Limine e **ambos os kernels `linux` e `linux-zen`**. Configure espelhos brasileiros, timezone `America/Sao_Paulo`, locale `en_US.UTF-8`, teclado ABNT2, hostname `dev-machine`, PipeWire e NetworkManager. Crie `dev` com acesso a `sudo`; `root` permanece como conta administrativa. A fonte de console desejada é `ter-v16n` (Terminus 16). Confira o mapa ABNT2, a fonte e as duas entradas de boot após a instalação.
-
-Após o boot, confira os subvolumes Btrfs, a montagem de `/.snapshots`, `snapper list-configs`, zram e os serviços com `./install.sh diagnose`. O `system apply` habilita Ly no tty1 e cria zram com zstd. Ele oculta as sessões shell/xinitrc/Wayland do Ly e mantém tty2 livre. O Limine e a integração de snapshots inicializáveis precisam de validação separada.
-
-Para o HD, execute `./install.sh storage plan` no notebook, identifique o dispositivo `by-id` e só então use `storage apply --profile acer-aspire-vx5-591g-54pg --disk ...`. Ele apaga o HD, pede senha LUKS, cria ext4 e monta em `/mnt/dados`; boots seguintes usam `storage unlock --profile acer-aspire-vx5-591g-54pg`. O SSD não é tocado pelo módulo de armazenamento.
-
-## Referências
-
-- [Acer: suporte ao VX5-591G](https://www.acer.com/pl-pl/support/product-support/VX5-591G/downloads)
-- [Acer Community: identificação do VX5-591G-54PG e i5-7300HQ](https://community.acer.com/pt/discussion/553751/notebook-acer-aspire-vx15-e-muito-lento-quero-uma-solucao)
-- [ArchWiki: compatibilidade da série VX5-591G](https://wiki.archlinux.org/title/Laptop/Acer)
-- [Arch Linux: mudança de suporte NVIDIA Pascal](https://archlinux.org/news/nvidia-590-driver-drops-pascal-support-main-packages-switch-to-open-kernel-modules/)
-- [ArchWiki: DKMS](https://wiki.archlinux.org/title/Dynamic_Kernel_Module_Support)
-- [Arch Linux Forums: touchpad VX5-591G e Fn+F7](https://bbs.archlinux.org/viewtopic.php?id=244524)
+O HD será reparticionado como uma partição LUKS2 com ext4. `storage apply` apaga o disco escolhido, exige o perfil Acer, um caminho `/dev/disk/by-id/...` e confirmação digitada. Use `./install.sh storage plan` e confira o dispositivo no próprio notebook antes de aplicar. O volume será montado em `/mnt/dados`; após reiniciar, `storage unlock --profile acer-aspire-vx5-591g-54pg` pede a senha e monta o HD. Instruções completas no [README principal](../../README.md#armazenamento-do-acer).
