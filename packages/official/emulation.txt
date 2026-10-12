@@ -1,0 +1,3 @@
+retroarch
+retroarch-assets-ozone
+dolphin-emu

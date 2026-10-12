@@ -1,0 +1,10 @@
+intel-ucode
+mesa
+vulkan-intel
+intel-media-driver
+btrfs-progs
+snapper
+snap-pac
+btrfs-assistant
+cryptsetup
+e2fsprogs

@@ -1,0 +1,15 @@
+gcc
+clang
+cmake
+gdb
+lldb
+pkgconf
+fnm
+rust
+dotnet-sdk-10.0
+dotnet-runtime-10.0
+aspnet-runtime-10.0
+podman
+dbeaver
+zed
+kleopatra

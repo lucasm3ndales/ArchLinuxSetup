@@ -1,0 +1,2 @@
+lib32-mesa
+lib32-vulkan-intel

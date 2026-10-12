@@ -1,0 +1,2 @@
+pcsx2
+rpcs3-git
