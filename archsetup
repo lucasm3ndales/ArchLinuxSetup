@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")"
+
+usage() {
+  cat <<'EOF'
+Uso: archsetup <comando> [opções]
+
+Comandos:
+  link                  Disponibiliza archsetup no terminal do usuário
+  check                 Confere pré-requisitos e o perfil do equipamento
+  doctor                Mostra diagnóstico sem alterar o sistema
+  paru                  Instala o auxiliar AUR após revisão do PKGBUILD
+  packages [categorias] Instala pacotes oficiais e AUR
+  xfce                  Configura tema, fontes e painéis do Xfce
+  touchpad              Ativa rolagem natural no touchpad X11
+
+Use --dry-run em link, paru, packages, xfce ou touchpad para ver a ação sem executá-la.
+Use archsetup help <comando> para ver opções e exemplos.
+EOF
+}
+
+link_cli() {
+  local dry_run=0 target="$HOME/.local/bin/archsetup" shell_name shell_rc path_line
+  case "${1:-}" in
+    '') ;;
+    --dry-run) dry_run=1; shift ;;
+    -h|--help)
+      printf 'Uso: archsetup link [--dry-run]\nCria um link em ~/.local/bin e configura o PATH do Bash ou Zsh.\n'
+      return 0
+      ;;
+    *) printf 'Opção desconhecida em link: %s\n' "$1" >&2; return 2 ;;
+  esac
+  (( $# == 0 )) || { printf 'link não aceita argumentos extras.\n' >&2; return 2; }
+  (( EUID != 0 )) || { printf 'Erro: execute como usuário comum, sem sudo.\n' >&2; return 1; }
+
+  shell_name="${SHELL:-/bin/bash}"
+  shell_name="${shell_name##*/}"
+  shell_rc=''
+  case "$shell_name" in
+    bash) shell_rc="$HOME/.bashrc" ;;
+    zsh) shell_rc="$HOME/.zshrc" ;;
+  esac
+  path_line='export PATH="$HOME/.local/bin:$PATH"'
+
+  printf '==> Vinculação do comando archsetup\n'
+  printf 'Origem: %s\nDestino: %s\n' "$PROJECT_DIR/archsetup" "$target"
+  if [[ -n "$shell_rc" ]] && { [[ ! -f "$shell_rc" ]] || ! grep -Fqx "$path_line" "$shell_rc"; }; then
+    printf 'PATH persistente: %s\n' "$shell_rc"
+  fi
+  if (( dry_run )); then
+    printf 'Prévia concluída. Nenhuma alteração realizada.\n'
+    return 0
+  fi
+
+  if [[ -e "$target" || -L "$target" ]]; then
+    [[ -L "$target" && "$(readlink -- "$target")" == "$PROJECT_DIR/archsetup" ]] || {
+      printf 'Erro: %s já existe e não aponta para este projeto.\n' "$target" >&2
+      return 1
+    }
+    printf 'O comando já aponta para este projeto.\n'
+  else
+    mkdir -p -- "$(dirname -- "$target")"
+    ln -s -- "$PROJECT_DIR/archsetup" "$target"
+    printf 'Comando criado.\n'
+  fi
+
+  if [[ -n "$shell_rc" ]]; then
+    if [[ ! -f "$shell_rc" ]] || ! grep -Fqx "$path_line" "$shell_rc"; then
+      if [[ -f "$shell_rc" ]]; then
+        cp -p -- "$shell_rc" "$shell_rc.archsetup.bak-$(date +%Y%m%d%H%M%S)"
+      fi
+      printf '\n%s\n' "$path_line" >> "$shell_rc"
+      printf 'PATH configurado em %s. Abra um novo terminal para usar archsetup.\n' "$shell_rc"
+    else
+      printf 'PATH já configurado em %s.\n' "$shell_rc"
+    fi
+  else
+    printf 'Inclua ~/.local/bin no PATH do seu shell para usar archsetup como comando.\n'
+  fi
+  printf 'Concluído: archsetup está vinculado a este repositório.\n'
+}
+
+module_path() {
+  case "$1" in
+    check|paru|packages) printf '%s/modules/%s.sh' "$PROJECT_DIR" "$1" ;;
+    xfce|touchpad) printf '%s/modules/desktop/%s.sh' "$PROJECT_DIR" "$1" ;;
+  esac
+}
+
+command_name="${1:-help}"
+case "$command_name" in
+  help|-h|--help)
+    if (( $# == 1 )) || (( $# == 0 )); then
+      usage
+    elif (( $# == 2 )); then
+      case "$2" in
+        link) link_cli --help ;;
+        check|packages|paru|xfce|touchpad) bash "$(module_path "$2")" --help ;;
+        doctor) printf 'Uso: archsetup doctor\nMostra diagnóstico sem alterar o sistema.\n' ;;
+        *) printf 'Comando desconhecido: %s\n' "$2" >&2; usage >&2; exit 2 ;;
+      esac
+    else
+      printf 'help aceita somente um comando.\n' >&2
+      exit 2
+    fi
+    ;;
+  link)
+    shift
+    link_cli "$@"
+    ;;
+  doctor)
+    shift
+    (( $# == 0 )) || { printf 'doctor não aceita argumentos.\n' >&2; exit 2; }
+    exec bash "$PROJECT_DIR/modules/doctor.sh"
+    ;;
+  check|paru|packages|xfce|touchpad)
+    shift
+    exec bash "$(module_path "$command_name")" "$@"
+    ;;
+  *)
+    printf 'Comando desconhecido: %s\n' "$command_name" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

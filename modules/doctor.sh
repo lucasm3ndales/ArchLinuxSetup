@@ -14,9 +14,12 @@ optional_command() {
 }
 
 if (( EUID == 0 )); then
-  printf 'Execute o diagnóstico como usuário comum, sem sudo.\n' >&2
+  printf 'Erro: execute o diagnóstico como usuário comum, sem sudo.\n' >&2
   exit 1
 fi
+
+printf '==> Diagnóstico do Arch e do hardware\n'
+printf 'Somente leitura. Revise UUIDs e dados do equipamento antes de compartilhar a saída.\n'
 
 section 'Sistema e sessão'
 printf 'Kernel: %s\n' "$(uname -r)"
@@ -24,8 +27,10 @@ printf 'Hostname: %s\n' "$(hostname)"
 printf 'Sessão: %s\n' "${XDG_SESSION_TYPE:-desconhecida}"
 printf 'Desktop: %s\n' "${XDG_CURRENT_DESKTOP:-desconhecido}"
 if command -v timedatectl >/dev/null 2>&1; then
-  timedatectl show -p Timezone --value || true
+  timezone=$(timedatectl show -p Timezone --value 2>/dev/null || true)
+  printf 'Fuso horário: %s\n' "${timezone:-indisponível}"
 fi
+
 if [[ -r /etc/locale.conf ]]; then
   printf 'Locale: '; awk -F= '$1 == "LANG" { print $2 }' /etc/locale.conf
 fi
@@ -94,7 +99,7 @@ if command -v pacman >/dev/null 2>&1; then
     mesa vulkan-intel intel-media-driver xf86-video-intel \
     xf86-input-libinput xf86-input-synaptics \
     nvidia nvidia-open nvidia-dkms nvidia-580xx-dkms nvidia-utils nvidia-prime \
-    btrfs-progs snapper snap-pac btrfs-assistant zram-generator ly \
+    btrfs-progs snapper snap-pac btrfs-assistant limine-snapper-sync zram-generator ly \
     tlp power-profiles-daemon; do
     if pacman -Qq "$package" >/dev/null 2>&1; then
       pacman -Q "$package"
@@ -124,3 +129,5 @@ if command -v systemctl >/dev/null 2>&1; then
 else
   printf 'Comando indisponível: systemctl\n'
 fi
+
+printf '\nConcluído: diagnóstico exibido. Nenhuma alteração realizada.\n'

@@ -1,64 +1,63 @@
 # ArchLinuxSetup
 
-Scripts de pós-instalação do Arch Linux. As listas de pacotes acrescentam aplicativos e utilitários à instalação registrada em [user_configuration.json](archinstall/user_configuration.json): Xfce, rede, áudio, Bluetooth, fontes, gráficos e Snapper já foram selecionados no archinstall. O perfil adiciona apenas o que depende do computador. Cada etapa tem um comando `plan` para revisão e um `apply` para execução.
+Pós-instalação do Arch Linux para o [Acer Aspire VX5-591G-54PG](profiles/acer-aspire-vx5-591g-54pg/README.md) e outros computadores. O archinstall instala o sistema; este projeto acrescenta pacotes, configura o visual do Xfce e ativa rolagem natural no touchpad X11. As escolhas iniciais do notebook estão em [user_configuration.json](archinstall/user_configuration.json).
 
-O projeto **não instala o Arch no SSD**. Essa parte é feita pelo archinstall. Também não configura o boot, o driver NVIDIA, a recuperação pelo Snapper ou ajustes de energia.
+## Começar
 
-## Antes de começar
-
-Use o sistema Arch já instalado, com um usuário comum que tenha acesso a `sudo`. Execute os comandos na raiz deste repositório, sem `sudo` antes de `./install.sh`.
-
-No primeiro boot do Acer, confira a instalação antes de aplicar os scripts:
+Use um usuário comum com acesso a `sudo`. Depois de clonar o repositório, entre na pasta e execute uma vez:
 
 ```bash
+./archsetup link
+```
+
+O comando cria `~/.local/bin/archsetup` apontando para este repositório e configura o PATH no Bash ou Zsh, com backup do arquivo anterior. **Abra um novo terminal** e confira com `archsetup help`. Mantenha o repositório no mesmo lugar; o comando instalado é um link para ele.
+
+Antes de alterar o notebook, confirme o perfil e o layout instalado. O JSON salvo não contém a configuração de criptografia do SSD:
+
+```bash
+archsetup check --profile acer-aspire-vx5-591g-54pg
 lsblk -f
-sudo snapper list-configs
-./install.sh diagnose
+archsetup doctor
 ```
 
-Confirme que `/` está em Btrfs sobre LUKS, que as configurações do Snapper correspondem aos subvolumes instalados e que as entradas do Limine iniciam os kernels escolhidos. O arquivo [user_configuration.json](archinstall/user_configuration.json) registra a seleção do archinstall, mas **não registra a criptografia do SSD**. O diagnóstico mostra dispositivos e montagens; revise a saída antes de compartilhá-la.
+Revise UUIDs e dados da máquina antes de compartilhar a saída. `check` é somente leitura: confirma o modelo Acer, `[multilib]`, os subvolumes Btrfs e a presença das ferramentas de snapshot.
 
-Se `snapper list-configs` mostrar `root` e `home`, você pode marcar o estado inicial antes de clonar o projeto:
+## Comandos
 
-```bash
-sudo snapper -c root create -d "Marco zero - Arch limpo" -p
-sudo snapper -c home create -d "Marco zero - Home limpa" -p
-```
-
-Os números são independentes. Esses snapshots não cobrem `/boot`, `/var/log` ou `/var/cache/pacman/pkg`. A restauração completa exige conferir a montagem do Btrfs e o boot pelo Limine; o projeto ainda não automatiza esse procedimento.
-
-## Sequência de uso
-
-```bash
-./install.sh aur plan
-./install.sh aur apply
-
-./install.sh packages plan --profile acer-aspire-vx5-591g-54pg
-./install.sh packages apply --profile acer-aspire-vx5-591g-54pg
-
-./install.sh system plan
-./install.sh system apply
-
-./install.sh xfce plan
-./install.sh xfce apply
-```
-
-`aur apply` prepara o `paru` para as categorias com pacotes AUR. Se `paru` ou `yay` já estiver instalado, `packages apply` pode usá-lo. Execute `system apply` após instalar `desktop`; execute `xfce apply` dentro de uma sessão X11 do Xfce. Ly e zram já vêm do archinstall neste notebook; os scripts não os instalam nem reconfiguram. O HD secundário tem um procedimento separado em [Armazenamento](#armazenamento-do-acer).
-
-| Comando | O que faz |
+| Comando | Ação |
 | --- | --- |
-| `diagnose` | Mostra informações do sistema; não altera nada. |
-| `aur plan/apply` | Planeja ou instala o `paru`. |
-| `packages plan/apply` | Mostra ou instala os pacotes selecionados. |
-| `system plan/apply` | Configura a rolagem natural do touchpad no Xorg. |
-| `xfce plan/apply` | Configura tema, fontes, painéis e indicador das teclas Lock. |
-| `storage plan/apply/unlock` | Inspeciona, prepara ou desbloqueia o HD secundário do Acer. |
+| `archsetup help` | Mostra a ajuda. Use `archsetup help packages` para detalhes de um comando. |
+| `archsetup check --profile NOME` | Checa compatibilidade e pré-requisitos sem alterar o sistema. |
+| `archsetup doctor` | Diagnóstico somente leitura. |
+| `archsetup paru` | Instala o auxiliar AUR após revisão do PKGBUILD. |
+| `archsetup packages` | Instala pacotes das categorias selecionadas. |
+| `archsetup xfce` | Aplica tema, fontes, painéis e indicador das teclas Lock. |
+| `archsetup touchpad` | Configura rolagem natural para touchpads X11. |
 
-`plan` não altera o sistema. `packages plan` mostra as listas, mas não calcula dependências nem verifica quais pacotes já estão instalados. Se um `apply` falhar no meio, confira a saída antes de repetir o comando.
+Adicione `--dry-run` a `paru`, `packages`, `xfce` ou `touchpad` para ver o que será feito sem alterar o sistema. Por exemplo, `archsetup packages gaming --dry-run`. Sem `--dry-run`, o comando executa a ação. Os scripts não suprimem as perguntas do `pacman` ou do auxiliar AUR.
+
+Sequência sugerida para o Acer:
+
+```bash
+archsetup check --profile acer-aspire-vx5-591g-54pg
+sudo snapper list-configs
+sudo snapper -c root create -d "Arch limpo - antes do ArchLinuxSetup"
+sudo snapper -c home create -d "Home limpa - antes do ArchLinuxSetup"
+archsetup paru --dry-run
+archsetup paru
+archsetup packages --profile acer-aspire-vx5-591g-54pg --dry-run
+archsetup packages --profile acer-aspire-vx5-591g-54pg
+archsetup xfce --dry-run
+archsetup xfce
+archsetup touchpad --dry-run
+archsetup touchpad
+```
+
+Se você já criou os dois snapshots do sistema limpo, pule as duas linhas de criação. Confira que as configurações `root` e `home` aparecem antes de executar esses comandos. Execute `xfce` numa sessão X11 do Xfce. A regra do touchpad entra em vigor na próxima sessão X11. `paru` é necessário para as categorias que contêm pacotes AUR; `packages` também aceita `yay` se já estiver instalado.
 
 ## Pacotes
 
-| Categoria | Principais pacotes |
+| Categoria | O que acrescenta |
 | --- | --- |
 | `base` | `base-devel`, Git, curl, utilitários de terminal e fonte Terminus. O perfil Acer acrescenta headers dos kernels, `snap-pac`, Btrfs Assistant e ferramentas de criptografia. |
 | `development` | GCC, Clang, CMake, depuradores, Python e pip, fnm, Rust/Cargo, .NET 10, Podman, DBeaver, Zed, Kleopatra e Bruno (AUR). |
@@ -66,59 +65,62 @@ Os números são independentes. Esses snapshots não cobrem `/boot`, `/var/log` 
 | `gaming` | Steam, GameMode e MangoHud. O perfil Acer acrescenta bibliotecas gráficas Intel de 32 bits. |
 | `emulation` | RetroArch, Dolphin, PCSX2 e RPCS3; os dois últimos vêm da AUR. |
 
-Sem categorias explícitas, `packages` usa `base development desktop`. Ao indicar uma ou mais categorias, instala somente as selecionadas. Sem `--profile`, usa somente as listas compartilhadas. O perfil Acer nunca é escolhido automaticamente. As listas pressupõem uma instalação inicial com as escolhas do JSON salvo; em outro computador, confirme esses componentes antes de executar os módulos que dependem deles.
-
-Você pode instalar em etapas:
+Sem categorias, `packages` seleciona `base development desktop`. Você também pode instalar por etapas:
 
 ```bash
-./install.sh packages apply --profile acer-aspire-vx5-591g-54pg base development
-./install.sh packages apply --profile acer-aspire-vx5-591g-54pg gaming
+archsetup packages base development --profile acer-aspire-vx5-591g-54pg
+archsetup packages gaming --profile acer-aspire-vx5-591g-54pg
 ```
 
-O script elimina nomes repetidos e usa `pacman -Syu --needed` e `paru -S --needed` (ou `yay`). Repetir uma categoria não duplica pacotes, mas `-Syu` pode atualizar o sistema. `gaming` exige `[multilib]` habilitado. Os pacotes oficiais são instalados antes dos pacotes AUR; o gerenciador resolve as dependências, independentemente da ordem das linhas nas listas.
+Sem `--profile`, só entram as listas compartilhadas. Nenhum perfil é escolhido automaticamente. As listas pressupõem os componentes instalados pelo archinstall conforme o JSON salvo; confira-os em outra máquina antes de configurar Xfce ou touchpad.
 
-Em `development`, o script instala o Node.js LTS pelo fnm apenas quando não há versão padrão. Ele acrescenta a inicialização ao `.bashrc` ou `.zshrc` uma vez, após fazer backup do arquivo existente. Em `desktop`, define o Brave como navegador padrão somente numa sessão gráfica e se ainda não for o padrão.
+O script elimina nomes repetidos e usa `pacman -Syu --needed` e `paru -S --needed` (ou `yay`). Reexecutar uma categoria não duplica pacotes, mas pode atualizar o sistema. `gaming` exige `[multilib]` habilitado. O `--dry-run` indica quais pacotes da lista já estão instalados; não calcula dependências nem alterações de versão. Se `rustup` estiver instalado, avisa antes de solicitar `rust`.
 
-### AUR
+Ao usar `--profile`, a aplicação confere o fabricante e o modelo antes de instalar. A prévia pode ser executada em outra máquina para revisar as listas.
 
-Numa instalação nova, `aur apply` instala `git` e `base-devel` pelos repositórios oficiais, baixa o [PKGBUILD do paru](https://aur.archlinux.org/packages/paru) e o mostra para revisão. Só executa `makepkg -si` como usuário comum depois que você digitar `INSTALAR PARU`. Revise também os PKGBUILDs apresentados pelo auxiliar AUR ao instalar ou atualizar outros pacotes. O [guia da ArchWiki](https://wiki.archlinux.org/title/Arch_User_Repository) explica essa revisão.
+`paru` instala `git` e `base-devel`, baixa o PKGBUILD da AUR, mostra seu conteúdo e só executa `makepkg -si` depois que você digitar `INSTALAR PARU`. Revise também os PKGBUILDs apresentados pelo auxiliar AUR ao instalar outros programas. Veja o [guia da ArchWiki sobre a AUR](https://wiki.archlinux.org/title/Arch_User_Repository).
 
-## Sistema e Xfce
+Em `development`, o script instala o Node.js LTS pelo fnm somente se não houver uma versão padrão e adiciona a inicialização ao `.bashrc` ou `.zshrc` uma vez, com backup. Em `desktop`, define o Brave como navegador padrão somente numa sessão gráfica, caso ainda não seja o padrão.
 
-`system apply` exige Xorg e libinput instalados. Cria uma regra Xorg restrita a touchpads para rolagem natural e salva a regra anterior, se houver. A mudança entra em vigor na próxima sessão X11. O comando não altera o gerenciador de login nem a configuração de zram feita pelo archinstall.
+## Xfce e touchpad
 
-`xfce apply` exige uma sessão X11 do Xfce. Faz backup em `~/.local/state/archlinuxsetup/backups/`, aplica Materia-dark, Papirus-Dark, cursor Capitaine e fonte Inter. Configura a dock inferior com Docklike e menu do Arch; no painel superior, usa Genmon para indicar Caps, Num e Scroll Lock. Repetir o comando cria outro backup, sem duplicar esses plugins.
+`xfce` exige uma sessão X11 do Xfce e os pacotes da categoria `desktop`. Faz backup da configuração em `~/.local/state/archlinuxsetup/backups/`, aplica Materia-dark, Papirus-Dark, cursor Capitaine e fonte Inter. Configura uma dock inferior com Docklike e menu do Arch; no painel superior, usa Genmon para mostrar Caps, Num e Scroll Lock. Repetir o comando cria outro backup, sem duplicar os plugins.
 
-No primeiro boot, confira a zram do archinstall com `zramctl` e `swapon --show`. Após `system apply`, confira a rolagem do touchpad numa nova sessão X11. Verifique também `systemctl is-enabled NetworkManager`; se necessário, habilite-o com `sudo systemctl enable --now NetworkManager`. O módulo `system` não altera Limine, LUKS, partições ou Snapper.
+`touchpad` exige Xorg e libinput. Cria uma regra Xorg restrita a touchpads para rolagem natural; faz backup se uma regra anterior existir. Repetir o comando não duplica a regra. Ly e zram pertencem à instalação feita pelo archinstall e não são reconfigurados por estes comandos.
 
-## Armazenamento do Acer
+## Snapshots e recuperação
 
-`storage apply` apaga **somente o disco informado**. O destino previsto é o HD secundário de 1 TB, preparado como LUKS2 com ext4 e montado em `/mnt/dados`. O SSD do sistema fica fora desse comando.
-
-No notebook, identifique o HD pelo modelo e por um caminho estável `/dev/disk/by-id/...`:
+O `archinstall` selecionou Snapper e criou as configurações `root` e `home`. O perfil Acer instala [Btrfs Assistant](https://archlinux.org/packages/extra/x86_64/btrfs-assistant/) para criar, listar e inspecionar snapshots pela interface gráfica. Também instala [snap-pac](https://archlinux.org/packages/extra/any/snap-pac/), que cria snapshots antes e depois de transações do pacman. Confirme as duas configurações no notebook:
 
 ```bash
-./install.sh storage plan
-ls -l /dev/disk/by-id/
-./install.sh storage apply --profile acer-aspire-vx5-591g-54pg --disk /dev/disk/by-id/ID_REAL_DO_HD
+sudo snapper list-configs
+sudo snapper -c root list
+sudo snapper -c home list
 ```
 
-Substitua `ID_REAL_DO_HD` pelo identificador visto no notebook. Antes de formatar, o script confirma o modelo Acer, tipo e capacidade do disco, partições e montagens, mostra o destino e exige que você digite `APAGAR /dev/...`. Ele recusa um HD já preparado. A formatação elimina os arquivos existentes; não faz apagamento seguro dos blocos antigos.
-
-O comando cria `/mnt/dados/Dados` e `/mnt/dados/Jogos`, salva backups de `/etc/crypttab` e `/etc/fstab` antes de editá-los e pede uma senha LUKS própria para o HD. Nos boots seguintes, desbloqueie-o manualmente:
+Para marcar o sistema limpo **antes de qualquer instalação do projeto**, use Snapper, que já veio do archinstall. Se você já tem esses snapshots, não precisa criá-los novamente. Depois de instalar `base`, abra **Btrfs Assistant** no Xfce para criar e consultar os próximos snapshots pela interface gráfica. Os comandos para o marco inicial são:
 
 ```bash
-./install.sh storage unlock --profile acer-aspire-vx5-591g-54pg
+sudo snapper -c root create -d "Arch limpo - antes do ArchLinuxSetup"
+sudo snapper -c home create -d "Home limpa - antes do ArchLinuxSetup"
 ```
+
+**Restauração:** o comando `snapper rollback` cria um novo subvolume e o define como padrão. No layout do archinstall, a raiz é montada explicitamente como `@`; essa troca pode não mudar a raiz usada no boot. Além disso, `/boot` é uma partição FAT32 separada com Limine e UKIs, fora do snapshot Btrfs. Uma recuperação manual a partir da ISO pode precisar montar o Btrfs no topo, restaurar `@` e alinhar os arquivos de `/boot`. Não execute `snapper rollback` presumindo que ele resolve esse layout sozinho.
+
+A [ArchWiki documenta `limine-snapper-sync`](https://wiki.archlinux.org/title/Limine#Snapper_snapshot_integration_for_Btrfs), disponível na AUR, para criar entradas de snapshots no Limine e restaurar o sistema com versões correspondentes do kernel. É o próximo facilitador a configurar após conferir `limine.conf`, UKIs, Snapper e as montagens no notebook. Este projeto ainda não o instala nem altera o boot automaticamente. O Btrfs Assistant ajuda a gerenciar snapshots, mas não substitui essa integração para uma restauração completa.
+
+## HD secundário
+
+O HD de 1 TB do Acer será configurado manualmente. Este repositório **não contém comando para particionar, formatar ou desbloquear discos**. Antes de qualquer operação no notebook, confirme modelo, partições e montagens do HD por um caminho estável em `/dev/disk/by-id/`; o SSD do sistema não é alvo desse preparo.
 
 ## Organização
 
 | Caminho | Conteúdo |
 | --- | --- |
-| `install.sh` | Interface de comandos. |
-| `modules/` | Implementação das etapas. |
+| `archsetup` | Interface de comandos e instalação do link local. |
+| `modules/` | Diagnóstico, pacotes, paru e módulos do desktop. |
 | `packages/official/`, `packages/aur/` | Pacotes compartilhados, um nome por linha. |
 | `profiles/<identificador>/` | Dados e pacotes específicos da máquina. |
-| `archinstall/` | Configuração salva do instalador; não contém senha de disco. |
+| `archinstall/` | Configuração salva do instalador; sem senha de disco. |
 
-O [perfil Acer](profiles/acer-aspire-vx5-591g-54pg/README.md) registra o hardware conhecido, as escolhas do archinstall e o que ainda precisa de teste no notebook. Para adicionar outro computador, crie seu perfil, coloque apenas os pacotes próprios dele nas mesmas categorias e confira a seleção com `./install.sh packages plan --profile <identificador>`.
+O [perfil Acer](profiles/acer-aspire-vx5-591g-54pg/README.md) registra o hardware conhecido e as verificações pendentes. Para adicionar outro computador, crie seu perfil e confira a seleção com `archsetup packages --profile <identificador> --dry-run`.
