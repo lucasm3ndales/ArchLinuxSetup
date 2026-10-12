@@ -14,9 +14,10 @@ Comandos:
   paru                  Instala o auxiliar AUR após revisão do PKGBUILD
   packages [categorias] Instala pacotes oficiais e AUR
   xfce                  Configura tema, fontes e painéis do Xfce
+  greeter               Aplica Nordic à tela de login LightDM/Slick
   touchpad              Ativa rolagem natural no touchpad X11
 
-Use --dry-run em link, paru, packages, xfce ou touchpad para ver a ação sem executá-la.
+Use --dry-run em link, paru, packages, xfce, greeter ou touchpad para ver a ação sem executá-la.
 Use archsetup help <comando> para ver opções e exemplos.
 EOF
 }
@@ -85,7 +86,7 @@ link_cli() {
 module_path() {
   case "$1" in
     check|paru|packages) printf '%s/modules/%s.sh' "$PROJECT_DIR" "$1" ;;
-    xfce|touchpad) printf '%s/modules/desktop/%s.sh' "$PROJECT_DIR" "$1" ;;
+    xfce|greeter|touchpad) printf '%s/modules/desktop/%s.sh' "$PROJECT_DIR" "$1" ;;
   esac
 }
 
@@ -97,7 +98,7 @@ case "$command_name" in
     elif (( $# == 2 )); then
       case "$2" in
         link) link_cli --help ;;
-        check|packages|paru|xfce|touchpad) bash "$(module_path "$2")" --help ;;
+        check|packages|paru|xfce|greeter|touchpad) bash "$(module_path "$2")" --help ;;
         doctor) printf 'Uso: archsetup doctor\nMostra diagnóstico sem alterar o sistema.\n' ;;
         *) printf 'Comando desconhecido: %s\n' "$2" >&2; usage >&2; exit 2 ;;
       esac
@@ -115,7 +116,7 @@ case "$command_name" in
     (( $# == 0 )) || { printf 'doctor não aceita argumentos.\n' >&2; exit 2; }
     exec bash "$PROJECT_DIR/modules/doctor.sh"
     ;;
-  check|paru|packages|xfce|touchpad)
+  check|paru|packages|xfce|greeter|touchpad)
     shift
     exec bash "$(module_path "$command_name")" "$@"
     ;;

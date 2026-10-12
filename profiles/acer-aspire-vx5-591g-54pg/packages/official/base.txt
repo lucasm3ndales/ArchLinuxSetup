@@ -1,6 +1,4 @@
 linux-headers
 linux-zen-headers
-snap-pac
-btrfs-assistant
 cryptsetup
 e2fsprogs

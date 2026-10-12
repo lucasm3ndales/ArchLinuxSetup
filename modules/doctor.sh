@@ -95,11 +95,11 @@ fi
 section 'Pacotes relevantes instalados'
 if command -v pacman >/dev/null 2>&1; then
   for package in \
-    linux linux-headers linux-zen linux-zen-headers dkms limine \
+    linux linux-headers linux-zen linux-zen-headers dkms grub grub-btrfs \
     mesa vulkan-intel intel-media-driver xf86-video-intel \
     xf86-input-libinput xf86-input-synaptics \
     nvidia nvidia-open nvidia-dkms nvidia-580xx-dkms nvidia-utils nvidia-prime \
-    btrfs-progs snapper snap-pac btrfs-assistant limine-snapper-sync zram-generator ly \
+    btrfs-progs timeshift cronie zram-generator ly \
     tlp power-profiles-daemon; do
     if pacman -Qq "$package" >/dev/null 2>&1; then
       pacman -Q "$package"
@@ -109,8 +109,17 @@ else
   printf 'Comando indisponível: pacman\n'
 fi
 
-section 'Configurações Snapper'
-optional_command snapper list-configs
+section 'Boot e snapshots'
+if command -v findmnt >/dev/null 2>&1; then
+  for mountpoint in /boot /boot/efi /efi; do
+    if findmnt -rnM "$mountpoint" >/dev/null 2>&1; then
+      printf '%s: ' "$mountpoint"
+      findmnt -rnM "$mountpoint" -o SOURCE,FSTYPE,OPTIONS
+    fi
+  done
+else
+  printf 'Comando indisponível: findmnt\n'
+fi
 
 section 'Serviços de login e rede'
 if command -v systemctl >/dev/null 2>&1; then

@@ -4,14 +4,8 @@ cmake
 gdb
 lldb
 pkgconf
-python
-python-pip
-fnm
-rust
-dotnet-sdk-10.0
-dotnet-runtime-10.0
-aspnet-runtime-10.0
-podman
+rustup
+docker
+docker-compose
 dbeaver
-zed
 kleopatra

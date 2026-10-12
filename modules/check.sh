@@ -5,7 +5,7 @@ PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$PROJECT_DIR/modules/profile.sh"
 
 usage() {
-  printf 'Uso: archsetup check [--profile NOME]\nConfere pré-requisitos e o layout de snapshots sem alterar o sistema.\n'
+  printf 'Uso: archsetup check [--profile NOME]\nConfere pré-requisitos e o layout de instalação sem alterar o sistema.\n'
 }
 
 profile=''
@@ -80,10 +80,12 @@ if command -v findmnt >/dev/null 2>&1; then
   home_fstype=$(findmnt -rnM /home -o FSTYPE 2>/dev/null || true)
   home_opts=$(findmnt -rnM /home -o OPTIONS 2>/dev/null || true)
   boot_fstype=$(findmnt -rnM /boot -o FSTYPE 2>/dev/null || true)
+  efi_fstype=$(findmnt -rnM /boot/efi -o FSTYPE 2>/dev/null || true)
+  [[ -n "$efi_fstype" ]] || efi_fstype=$(findmnt -rnM /efi -o FSTYPE 2>/dev/null || true)
   if [[ "$root_fstype" == btrfs && ",$root_opts," == *,subvol=/@,* || "$root_fstype" == btrfs && ",$root_opts," == *,subvol=@,* ]]; then
     printf '[OK] Raiz Btrfs montada no subvolume @\n'
   else
-    printf '[AVISO] Raiz não foi identificada como Btrfs @; confira o layout dos snapshots.\n'
+    printf '[AVISO] Raiz não foi identificada como Btrfs @; confira o layout do Timeshift.\n'
   fi
   if [[ "$home_fstype" == btrfs && ",$home_opts," == *,subvol=/@home,* || "$home_fstype" == btrfs && ",$home_opts," == *,subvol=@home,* ]]; then
     printf '[OK] /home Btrfs montado no subvolume @home\n'
@@ -92,33 +94,28 @@ if command -v findmnt >/dev/null 2>&1; then
   fi
   if [[ -n "$boot_fstype" ]]; then
     printf '[AVISO] /boot é uma partição separada (%s); snapshots Btrfs de @ não incluem seu conteúdo.\n' "$boot_fstype"
+  elif [[ -n "$efi_fstype" ]]; then
+    printf '[OK] /boot faz parte da raiz; partição EFI montada separadamente (%s)\n' "$efi_fstype"
+  else
+    printf '[AVISO] Partição EFI não identificada em /boot/efi ou /efi.\n'
   fi
 else
   printf '[AVISO] findmnt indisponível; layout Btrfs não verificado.\n'
 fi
 
 if command -v pacman >/dev/null 2>&1; then
-  if pacman -Qq snapper >/dev/null 2>&1; then
-    printf '[OK] Snapper instalado\n'
+  if pacman -Qq timeshift >/dev/null 2>&1; then
+    printf '[OK] Timeshift instalado\n'
   else
-    printf '[AVISO] Snapper não instalado; confirme o resultado do archinstall.\n'
+    printf '[AVISO] Timeshift não instalado; selecione-o no archinstall ou instale-o antes de criar snapshots.\n'
   fi
-  if pacman -Qq snap-pac >/dev/null 2>&1; then
-    printf '[OK] snap-pac instalado para snapshots em transações do pacman\n'
+  if pacman -Qq grub >/dev/null 2>&1; then
+    printf '[OK] GRUB instalado; confirme que é o gerenciador ativo antes de confiar no restore.\n'
   else
-    printf '[AVISO] snap-pac não instalado; está na categoria base do perfil Acer.\n'
+    printf '[AVISO] GRUB não instalado; o Timeshift documenta suporte a GRUB2 para restauração.\n'
   fi
-  if pacman -Qq btrfs-assistant >/dev/null 2>&1; then
-    printf '[OK] Btrfs Assistant instalado para gerenciar snapshots graficamente\n'
-  else
-    printf '[AVISO] Btrfs Assistant não instalado; está na categoria base do perfil Acer.\n'
-  fi
-  if pacman -Qq limine >/dev/null 2>&1; then
-    if pacman -Qq limine-snapper-sync >/dev/null 2>&1; then
-      printf '[INFO] limine-snapper-sync instalado; confirme serviço, entradas e restauração no notebook.\n'
-    else
-      printf '[AVISO] Limine sem integração de snapshots detectada. Restaurar @ e /boot exige procedimento validado.\n'
-    fi
+  if pacman -Qq grub-btrfs >/dev/null 2>&1; then
+    printf '[INFO] grub-btrfs instalado; teste as entradas de snapshots antes de depender delas.\n'
   fi
 fi
 

@@ -1,3 +1,10 @@
 brave-bin
-vscodium-bin
 spotify
+chatgpt-desktop
+ksuperkey
+nordic-theme
+nordic-darker-theme
+nordic-bluish-accent-theme
+nordic-polar-theme
+nordzy-icon-theme
+nordzy-cursors

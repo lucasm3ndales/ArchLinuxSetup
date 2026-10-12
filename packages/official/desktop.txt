@@ -4,12 +4,7 @@ qbittorrent
 xorg-xinput
 xorg-xset
 xf86-input-libinput
-xfce4-docklike-plugin
-materia-gtk-theme
-papirus-icon-theme
-capitaine-cursors
 inter-font
 ttf-fira-code
-ttf-hack
 alsa-utils
 xdg-desktop-portal-gtk

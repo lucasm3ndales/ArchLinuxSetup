@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Genmon lê essas tags a cada atualização; LC_ALL fixa os nomes retornados pelo xset.
 if ! state=$(LC_ALL=C xset q 2>/dev/null); then
-  printf '<txt>LOCKS ?</txt><tool>Estado do teclado indisponível</tool>\n'
+  printf '<txt><span foreground="#9ca3af">⇪  #  ⇳</span></txt><tool>Estado do teclado indisponível</tool>\n'
   exit 0
 fi
 
@@ -30,9 +30,9 @@ label() {
 }
 
 printf '<txt>'
-label CAPS "$caps"
+label '⇪' "$caps"
 printf '  '
-label NUM "$num"
+label '#' "$num"
 printf '  '
-label SCR "$scroll"
+label '⇳' "$scroll"
 printf '</txt><tool>Caps Lock: %s\nNum Lock: %s\nScroll Lock: %s</tool>\n' "$caps" "$num" "$scroll"

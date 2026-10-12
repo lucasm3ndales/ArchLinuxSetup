@@ -133,11 +133,14 @@ if command -v pacman >/dev/null 2>&1; then
   printf '\nResumo: %s instalados; %s ausentes.\n' "$installed_count" "$missing_count"
 fi
 
-if [[ -n "${seen_official[rust]:-}" ]] && command -v pacman >/dev/null 2>&1 && pacman -Qq rustup >/dev/null 2>&1; then
-  printf '\nAviso: rustup já está instalado. A categoria development seleciona rust; revise a escolha no pacman antes de prosseguir.\n'
+if [[ -n "${seen_official[rustup]:-}" ]] && command -v pacman >/dev/null 2>&1 && pacman -Qq rust >/dev/null 2>&1; then
+  printf '\nAviso: rust já está instalado. A categoria development seleciona rustup; revise eventuais conflitos apresentados pelo pacman.\n'
 fi
 
 if (( dry_run )); then
+  if [[ -n "${selected[development]:-}" ]]; then
+    printf '\nDocker: adicionar o usuário atual ao grupo docker, se necessário, e habilitar/iniciar docker.service.\n'
+  fi
   if [[ -n "${selected[gaming]:-}" ]]; then
     printf '\nSteam exige [multilib] e bibliotecas gráficas de 32 bits compatíveis com a GPU.\n'
   fi
@@ -151,8 +154,17 @@ os_id=$(awk -F= '$1 == "ID" { gsub(/"/, "", $2); print $2 }' /etc/os-release)
 [[ "$os_id" == arch ]] || fail 'A instalação de pacotes só é permitida no Arch Linux.'
 command -v pacman >/dev/null 2>&1 || fail 'pacman não encontrado.'
 command -v sudo >/dev/null 2>&1 || fail 'sudo não encontrado.'
+if [[ -n "${selected[development]:-}" ]]; then
+  command -v getent >/dev/null 2>&1 || fail 'getent não encontrado.'
+  command -v groupadd >/dev/null 2>&1 || fail 'groupadd não encontrado.'
+  command -v usermod >/dev/null 2>&1 || fail 'usermod não encontrado.'
+  command -v systemctl >/dev/null 2>&1 || fail 'systemctl não encontrado.'
+fi
 if [[ -n "$profile" ]]; then
   validate_profile_compatibility "$profile" || fail 'Aplicação recusada para este perfil.'
+fi
+if [[ -n "${seen_official[rustup]:-}" ]] && pacman -Qq rust >/dev/null 2>&1; then
+  fail 'rust já está instalado e compartilha arquivos com rustup. Remova rust manualmente após conferir seus dependentes e execute o comando novamente.'
 fi
 
 if [[ -n "${selected[gaming]:-}" ]]; then
@@ -174,6 +186,33 @@ fi
 printf '\n==> Atualizando o sistema e instalando pacotes oficiais\n'
 sudo pacman -Syu --needed "${official[@]}"
 
+if [[ -n "${selected[development]:-}" ]]; then
+  printf '\n==> Conferindo acesso ao Docker\n'
+  if ! getent group docker >/dev/null; then
+    sudo groupadd --system docker
+    printf 'Grupo docker criado.\n'
+  fi
+  current_user=$(id -un)
+  if [[ " $(id -nG "$current_user") " == *' docker '* ]]; then
+    printf 'Usuário %s já pertence ao grupo docker.\n' "$current_user"
+  else
+    sudo usermod -aG docker "$current_user"
+    printf 'Usuário %s adicionado ao grupo docker. Saia e entre novamente para ativar o acesso.\n' "$current_user"
+  fi
+  if systemctl is-enabled --quiet docker.service; then
+    printf 'Docker já está habilitado para iniciar no boot.\n'
+  else
+    sudo systemctl enable docker.service
+    printf 'Docker habilitado para iniciar no boot.\n'
+  fi
+  if systemctl is-active --quiet docker.service; then
+    printf 'Docker já está em execução.\n'
+  else
+    sudo systemctl start docker.service
+    printf 'Docker iniciado.\n'
+  fi
+fi
+
 if (( ${#aur[@]} > 0 )); then
   printf '\n==> Instalando pacotes AUR com %s\nRevise os PKGBUILDs apresentados.\n' "$aur_helper"
   "$aur_helper" -S --needed "${aur[@]}"
@@ -192,36 +231,13 @@ if [[ -n "${selected[desktop]:-}" && -f /usr/share/applications/brave-browser.de
 fi
 
 if [[ -n "${selected[development]:-}" ]]; then
-  printf '\n==> Configurando Node.js com fnm\n'
-  eval "$(fnm env --shell bash)"
-  default_node=$(fnm default 2>/dev/null || true)
-  if [[ -n "$default_node" ]]; then
-    printf '\nNode.js padrão do fnm já configurado: %s.\n' "$default_node"
+  printf '\n==> Configurando Rust com rustup\n'
+  if rustup toolchain list | grep -Fq '(default)'; then
+    printf 'Toolchain padrão do Rust já configurada.\n'
   else
-    printf '\nInstalando a versão LTS do Node.js com fnm.\n'
-    fnm install --lts --use
-    fnm default "$(fnm current)"
+    printf 'Instalando a toolchain estável do Rust.\n'
+    rustup default stable
   fi
-
-  shell_name="${SHELL:-/bin/bash}"
-  shell_name="${shell_name##*/}"
-  case "$shell_name" in
-    bash|zsh)
-      shell_rc="$HOME/.$shell_name"rc
-      if [[ -f "$shell_rc" ]] && grep -Fq 'fnm env' "$shell_rc"; then
-        printf 'O arquivo %s já contém configuração do fnm; preservei a configuração existente.\n' "$shell_rc"
-      else
-        if [[ -f "$shell_rc" ]]; then
-          cp -p -- "$shell_rc" "$shell_rc.archlinuxsetup.bak-$(date +%Y%m%d%H%M%S)"
-        fi
-        printf '\n%s\n' "eval \"\$(fnm env --use-on-cd --shell $shell_name)\"" >> "$shell_rc"
-        printf 'Integração do fnm adicionada a %s. Abra um novo terminal para usá-la.\n' "$shell_rc"
-      fi
-      ;;
-    *)
-      printf 'Configure fnm env no shell %s para disponibilizar o Node em novos terminais.\n' "$shell_name"
-      ;;
-  esac
 fi
 
 printf '\nConcluído: categorias %s processadas. Pacotes já instalados são ignorados por --needed.\n' "${selected_categories[*]}"

@@ -9,4 +9,3 @@ rsync
 ripgrep
 fd
 fastfetch
-terminus-font
