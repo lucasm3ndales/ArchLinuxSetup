@@ -2,7 +2,6 @@ discord
 telegram-desktop
 qbittorrent
 xorg-xinput
-xorg-xset
 xf86-input-libinput
 inter-font
 ttf-fira-code

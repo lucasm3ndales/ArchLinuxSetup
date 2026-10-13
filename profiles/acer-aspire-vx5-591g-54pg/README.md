@@ -12,7 +12,7 @@ O SSD é alvo do archinstall. Para a nova instalação, o plano é LUKS, Btrfs c
 | Localização | Espelhos brasileiros; `America/Sao_Paulo`; `en_US.UTF-8`; teclado ABNT2 |
 | Rede e áudio | NetworkManager; PipeWire |
 | Interface | Xfce X11; LightDM com Slick Greeter selecionados no archinstall. `archsetup desktop --profile acer-aspire-vx5-591g-54pg` aplica o visual e os ajustes do touchpad após o primeiro login. |
-| Console | Conferir a fonte escolhida no primeiro boot. A categoria `base` inclui `terminus-font` para eventual uso de `ter-v16n`. |
+| Console | Conferir a fonte escolhida no primeiro boot. O ArchSetup não configura a fonte do console. |
 
 Depois do primeiro boot, confira com `lsblk -f`, `findmnt /`, `findmnt /boot` e `archsetup check --profile acer-aspire-vx5-591g-54pg` o sistema de arquivos, as montagens e as ferramentas instaladas. Verifique também zram, GRUB, Timeshift e os kernels escolhidos. Os comandos deste projeto não configuram boot, criptografia ou recuperação; consulte [Recuperação do sistema](#recuperação-do-sistema).
 

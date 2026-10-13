@@ -36,12 +36,12 @@ done
 if [[ -n "$profile" ]]; then
   [[ "$profile" =~ ^[a-z0-9][a-z0-9-]*$ && -d "$PROJECT_DIR/profiles/$profile" ]] || fail "Perfil inexistente ou inválido: $profile"
 fi
-required_desktop_packages=(xorg-xset xf86-input-libinput inter-font ttf-fira-code ksuperkey nordic-theme nordzy-icon-theme nordzy-cursors)
+required_desktop_packages=(xf86-input-libinput inter-font ttf-fira-code ksuperkey nordic-theme nordzy-icon-theme nordzy-cursors xfce4-kbdleds-plugin)
 
 printf '==> %s do desktop\n' "$([[ "$dry_run" == 1 ]] && printf 'Prévia' || printf 'Configuração')"
 printf 'Perfil: %s\n' "${profile:-nenhum}"
 cat <<'EOF'
-  Xfce: tema Nordic, fontes, painel superior, busca, espaços de trabalho e tecla Super.
+  Xfce: tema Nordic, fontes, painel superior, busca, teclas Lock, espaços de trabalho e tecla Super.
   Login: tema Nordic no LightDM com Slick Greeter.
   Touchpad X11: rolagem natural; o perfil Acer também ativa toque para clicar.
 EOF
@@ -84,7 +84,6 @@ done
 active_dm=$(readlink -f -- /etc/systemd/system/display-manager.service 2>/dev/null || true)
 [[ "$active_dm" == */lightdm.service ]] || fail 'LightDM não é o gerenciador de login habilitado.'
 [[ -f /usr/share/xfce4/panel/plugins/xfce4-verve-plugin.desktop ]] || fail 'Plugin Verve ausente; confira a instalação do Xfce.'
-[[ -f /usr/share/xfce4/panel/plugins/genmon.desktop ]] || fail 'Plugin Genmon ausente; confira a instalação do Xfce.'
 [[ -f /usr/share/xfce4/panel/plugins/applicationsmenu.desktop ]] || fail 'Menu de aplicativos do Xfce ausente.'
 [[ -f /usr/share/pixmaps/archlinux-logo.svg ]] || fail 'Logo do Arch ausente.'
 shortcut_path='/commands/custom/<Alt>F1'
@@ -120,9 +119,10 @@ fi
 for package in xorg-server xf86-input-libinput inter-font ttf-fira-code; do
   pacman -Qq "$package" >/dev/null 2>&1 || fail "Pacote necessário ausente: $package"
 done
-for command_name in xfconf-query xfce4-panel xset ksuperkey pgrep lightdm install cmp mktemp; do
+for command_name in xfconf-query xfce4-panel ksuperkey pgrep lightdm install cmp mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || fail "Comando necessário ausente: $command_name"
 done
+[[ -f /usr/share/xfce4/panel/plugins/kbdleds.desktop ]] || fail 'Plugin Keyboard LEDs ausente após instalar a categoria desktop.'
 [[ -d /usr/share/themes/Nordic/gtk-3.0 && -d /usr/share/themes/Nordic/xfwm4 ]] || fail 'Tema Nordic incompleto.'
 [[ -d /usr/share/icons/Nordzy-dark && -d /usr/share/icons/Nordzy-cursors/cursors ]] || fail 'Ícones Nordzy-dark ou cursor Nordzy-cursors ausentes.'
 sudo -v || fail 'Não foi possível obter acesso sudo.'
@@ -137,14 +137,13 @@ desktop_name="${XDG_CURRENT_DESKTOP:-}"
 [[ "${desktop_name,,}" == *xfce* ]] || fail 'A sessão atual não parece ser do Xfce.'
 command -v xfconf-query >/dev/null 2>&1 || fail 'xfconf-query não encontrado; instale a categoria desktop.'
 command -v xfce4-panel >/dev/null 2>&1 || fail 'xfce4-panel não encontrado; instale a categoria desktop.'
-command -v xset >/dev/null 2>&1 || fail 'xset não encontrado; instale a categoria desktop.'
 command -v ksuperkey >/dev/null 2>&1 || fail 'ksuperkey não encontrado; reinstale a categoria desktop com o auxiliar AUR.'
 command -v pgrep >/dev/null 2>&1 || fail 'pgrep não encontrado.'
 command -v pacman >/dev/null 2>&1 || fail 'pacman não encontrado.'
 [[ -d /usr/share/themes/Nordic/gtk-3.0 && -d /usr/share/themes/Nordic/xfwm4 ]] || fail 'Tema Nordic incompleto.'
 [[ -d /usr/share/icons/Nordzy-dark && -d /usr/share/icons/Nordzy-cursors/cursors ]] || fail 'Ícones Nordzy-dark ou cursor Nordzy-cursors ausentes.'
 [[ -f /usr/share/xfce4/panel/plugins/xfce4-verve-plugin.desktop ]] || fail 'Plugin Verve ausente; instale a categoria desktop.'
-[[ -f /usr/share/xfce4/panel/plugins/genmon.desktop ]] || fail 'Plugin Genmon ausente.'
+[[ -f /usr/share/xfce4/panel/plugins/kbdleds.desktop ]] || fail 'Plugin Keyboard LEDs ausente; instale a categoria desktop.'
 [[ -f /usr/share/xfce4/panel/plugins/applicationsmenu.desktop ]] || fail 'Menu de aplicativos do Xfce ausente.'
 arch_logo=/usr/share/pixmaps/archlinux-logo.svg
 [[ -f "$arch_logo" ]] || fail "Logo do Arch ausente: $arch_logo"
@@ -227,12 +226,30 @@ pager_id=$(find_or_allocate_plugin pager)
 (( pager_id > max_plugin_id )) && max_plugin_id="$pager_id"
 clock_id=$(find_or_allocate_plugin clock)
 (( clock_id > max_plugin_id )) && max_plugin_id="$clock_id"
-keylock_id=$(xfconf-query -c xfce4-panel -p "/panels/panel-$top_panel_id/archlinuxsetup-keylocks-id" 2>/dev/null || true)
-if [[ "$keylock_id" =~ ^[0-9]+$ ]]; then
-  current_type=$(xfconf-query -c xfce4-panel -p "/plugins/plugin-$keylock_id" 2>/dev/null || true)
-  [[ -z "$current_type" || "$current_type" == genmon ]] || keylock_id=''
+legacy_keylock_id=$(xfconf-query -c xfce4-panel -p "/panels/panel-$top_panel_id/archlinuxsetup-keylocks-id" 2>/dev/null || true)
+legacy_genmon_id=''
+if [[ "$legacy_keylock_id" =~ ^[0-9]+$ && " ${top_plugin_ids[*]} " == *" $legacy_keylock_id "* ]]; then
+  current_type=$(xfconf-query -c xfce4-panel -p "/plugins/plugin-$legacy_keylock_id" 2>/dev/null || true)
+  [[ "$current_type" != genmon ]] || legacy_genmon_id="$legacy_keylock_id"
 fi
-if [[ ! "$keylock_id" =~ ^[0-9]+$ ]]; then
+keylock_id=$(xfconf-query -c xfce4-panel -p "/panels/panel-$top_panel_id/archlinuxsetup-kbdleds-id" 2>/dev/null || true)
+if [[ "$keylock_id" =~ ^[0-9]+$ && " ${top_plugin_ids[*]} " == *" $keylock_id "* ]]; then
+  current_type=$(xfconf-query -c xfce4-panel -p "/plugins/plugin-$keylock_id" 2>/dev/null || true)
+  [[ "$current_type" == kbdleds ]] || keylock_id=''
+else
+  keylock_id=''
+fi
+if [[ -z "$keylock_id" ]]; then
+  for id in "${top_plugin_ids[@]}"; do
+    current_type=$(xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" 2>/dev/null || true)
+    if [[ "$current_type" == kbdleds ]]; then
+      keylock_id="$id"
+      break
+    fi
+  done
+fi
+[[ -n "$keylock_id" ]] || keylock_id="$legacy_genmon_id"
+if [[ -z "$keylock_id" ]]; then
   max_plugin_id=$((max_plugin_id + 1))
   keylock_id="$max_plugin_id"
 fi
@@ -252,11 +269,10 @@ printf 'Configuração anterior salva em %s\n' "$backup_dir"
 
 printf '\n==> Configurando tema e painéis\n'
 keylock_target="$HOME/.local/bin/archlinuxsetup-keylocks"
-mkdir -p -- "$(dirname -- "$keylock_target")"
-if [[ -e "$keylock_target" ]] && ! cmp -s "$PROJECT_DIR/modules/desktop/keylocks.sh" "$keylock_target"; then
-  cp -p -- "$keylock_target" "$backup_dir/archlinuxsetup-keylocks"
+if [[ -e "$keylock_target" || -L "$keylock_target" ]]; then
+  mv -- "$keylock_target" "$backup_dir/archlinuxsetup-keylocks"
+  printf 'Indicador antigo preservado em %s\n' "$backup_dir/archlinuxsetup-keylocks"
 fi
-install -m 755 "$PROJECT_DIR/modules/desktop/keylocks.sh" "$keylock_target"
 
 set_property() {
   local channel="$1" property="$2" type="$3" value="$4"
@@ -312,11 +328,14 @@ if [[ "$workspace_count" =~ ^[0-9]+$ ]] && (( workspace_count >= 1 && workspace_
   done
   xfconf-query -c xfwm4 -p /general/workspace_names --create --force-array "${workspace_args[@]}"
 fi
-set_property xfce4-panel "/plugins/plugin-$keylock_id" string genmon
-set_property xfce4-panel "/plugins/plugin-$keylock_id/command" string "\"$keylock_target\""
-set_property xfce4-panel "/plugins/plugin-$keylock_id/update-period" int 1000
-set_property xfce4-panel "/plugins/plugin-$keylock_id/use-label" bool false
-set_property xfce4-panel "/panels/panel-$top_panel_id/archlinuxsetup-keylocks-id" int "$keylock_id"
+if [[ -n "$legacy_genmon_id" ]]; then
+  xfconf-query -c xfce4-panel -p "/plugins/plugin-$legacy_genmon_id" --recursive --reset
+fi
+if [[ -n "$legacy_keylock_id" ]]; then
+  xfconf-query -c xfce4-panel -p "/panels/panel-$top_panel_id/archlinuxsetup-keylocks-id" --reset
+fi
+set_property xfce4-panel "/plugins/plugin-$keylock_id" string kbdleds
+set_property xfce4-panel "/panels/panel-$top_panel_id/archlinuxsetup-kbdleds-id" int "$keylock_id"
 set_property xfce4-panel "/plugins/plugin-$clock_id" string clock
 set_property xfce4-panel "/plugins/plugin-$clock_id/mode" uint 2
 set_property xfce4-panel "/plugins/plugin-$clock_id/digital-format" string '%d/%m %H:%M'
@@ -324,7 +343,7 @@ set_property xfce4-panel "/plugins/plugin-$clock_id/digital-format" string '%d/%
 ordered_ids=("$menu_id" "$search_id" "$tasklist_id")
 right_ids=()
 for id in "${top_plugin_ids[@]}"; do
-  [[ "$id" == "$menu_id" || "$id" == "$search_id" || "$id" == "$tasklist_id" || "$id" == "$pager_id" || "$id" == "$keylock_id" || "$id" == "$clock_id" ]] && continue
+  [[ "$id" == "$menu_id" || "$id" == "$search_id" || "$id" == "$tasklist_id" || "$id" == "$pager_id" || "$id" == "$keylock_id" || "$id" == "$legacy_genmon_id" || "$id" == "$clock_id" ]] && continue
   type=$(xfconf-query -c xfce4-panel -p "/plugins/plugin-$id" 2>/dev/null || true)
   case "$type" in
     applicationsmenu|whiskermenu|docklike) ;;

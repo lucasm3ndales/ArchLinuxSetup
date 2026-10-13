@@ -5,7 +5,7 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 ## Interface e escopo
 
 - `archsetup` é a única interface pública. Os comandos são `link`, `check`, `doctor`, `aur`, `packages` e `desktop`. Use `--dry-run` para prévias sem alterações; não reintroduza `plan/apply`.
-- `modules/packages.sh`, `modules/aur.sh` e `modules/doctor.sh` tratam pacotes, AUR e diagnóstico. `modules/desktop.sh` reúne os ajustes Xfce, LightDM/Slick Greeter e touchpad X11; `modules/desktop/keylocks.sh` é apenas o auxiliar do indicador das teclas Lock.
+- `modules/packages.sh`, `modules/aur.sh` e `modules/doctor.sh` tratam pacotes, AUR e diagnóstico. `modules/desktop.sh` reúne os ajustes Xfce, LightDM/Slick Greeter e touchpad X11.
 - O HD secundário será configurado manualmente. Não adicione formatação ou desbloqueio ao CLI sem um novo pedido explícito. O SSD é instalado pelo archinstall. Boot, driver NVIDIA, energia e recuperação de snapshots não estão implementados.
 - Não crie diretórios vazios como marcadores de funcionalidades futuras.
 
@@ -14,7 +14,7 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 - `packages/official/<categoria>.txt` e `packages/aur/<categoria>.txt` são listas comuns. `profiles/<identificador>/` contém dados e pacotes próprios da máquina. Hoje existe apenas `acer-aspire-vx5-591g-54pg`.
 - Sem `--profile`, use somente as listas comuns. Nunca escolha um perfil automaticamente.
 - Classifique pacotes pela função. Coloque dependências de GPU, CPU ou outro dispositivo no perfil. Prefira pacotes oficiais; use nomes exatos do Arch. Cada linha contém um pacote, sem argumentos de shell; linhas vazias e comentários iniciados por `#` são aceitos.
-- Não há configuração salva do archinstall no repositório. Antes de adicionar um pacote, confira no sistema alvo se o archinstall já o instala diretamente, por um grupo ou como dependência. `xfce4-genmon-plugin` e `xfce4-verve-plugin` vêm de `xfce4-goodies`; o grupo de pacotes `xfce` depende deles.
+- Não há configuração salva do archinstall no repositório. Antes de adicionar um pacote, confira no sistema alvo se o archinstall já o instala diretamente, por um grupo ou como dependência. `xfce4-verve-plugin` vem de `xfce4-goodies`; o grupo de pacotes `xfce` depende dele. `xfce4-kbdleds-plugin` fica na lista AUR `desktop`.
 - Atualize a tabela de categorias do `README.md` ao mudar uma lista.
 - `--dry-run` não deve alterar arquivos, pacotes ou configurações. Antes da primeira alteração, valide os pré-requisitos. Rode os scripts como usuário comum e use `sudo` somente quando necessário.
 - Sem `--dry-run`, `aur` e `packages` instalam com `--noconfirm`, sem frases de confirmação adicionais. `aur` mostra o PKGBUILD e lista os demais arquivos antes de executar `makepkg`; nunca execute `makepkg` como root. `packages` prefere `paru`, mas aceita `yay` existente. Se nenhum auxiliar estiver disponível e houver pacotes AUR selecionados, informe a dependência e ofereça executar `archsetup aur` antes de instalar. Não leia nem armazene a senha do usuário; use o cache temporário do próprio `sudo`.
@@ -35,7 +35,7 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 
 - Temas, fontes e layout são comuns a todas as máquinas. `desktop` roda como usuário comum numa sessão X11 do Xfce e configura Xfce, LightDM/Slick Greeter e touchpad. Se faltarem pacotes da categoria `desktop` necessários ao comando, ofereça executar `archsetup packages desktop` antes de alterar arquivos; não instale ou substitua Xfce ou o gerenciador de login automaticamente.
 - Faça backup antes de mudar Xfconf ou painéis. Repetir o comando não deve duplicar painéis ou plugins.
-- O painel superior usa tarefas nativas agrupadas por aplicativo e limitadas ao espaço atual, busca Verve, espaços de trabalho, relógio com dia/mês e hora e `xfce4-genmon-plugin` com `modules/desktop/keylocks.sh`. Reutilize o relógio existente e não recrie a dock inferior. O menu usa `/usr/share/pixmaps/archlinux-logo.svg`, fornecido por `filesystem`.
+- O painel superior usa tarefas nativas agrupadas por aplicativo e limitadas ao espaço atual, busca Verve, espaços de trabalho, relógio com dia/mês e hora e `xfce4-kbdleds-plugin`. Reutilize o relógio existente e não recrie a dock inferior. Ao migrar, remova apenas o Genmon identificado como indicador antigo do projeto e preserve o script anterior no backup. O menu usa `/usr/share/pixmaps/archlinux-logo.svg`, fornecido por `filesystem`.
 - Reutilize o Whisker Menu existente com o logo do Arch; se ele não existir, use o menu de aplicativos. Não deixe dois menus no painel.
 - A configuração ativa usa Nordic escuro para GTK/xfwm4, Nordzy-dark para ícones, Nordzy-cursors para cursor e Inter para a interface. Fira Code é a única fonte extra para código. As variantes Nordic escura/claras ficam instaladas, mas não são aplicadas automaticamente.
 - A configuração de login em `desktop` exige LightDM com Slick Greeter instalado e LightDM habilitado. Use Nordic, Nordzy-dark, Nordzy-cursors e Inter também na tela de login. Preserve as demais opções de `/etc/lightdm/slick-greeter.conf`, faça backup antes de editar e não reinicie a sessão durante a aplicação.

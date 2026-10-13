@@ -2,6 +2,7 @@ brave-bin
 spotify
 chatgpt-desktop
 ksuperkey
+xfce4-kbdleds-plugin
 nordic-theme
 nordic-darker-theme
 nordic-bluish-accent-theme
