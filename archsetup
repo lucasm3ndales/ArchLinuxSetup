@@ -8,30 +8,30 @@ usage() {
 Uso: archsetup <comando> [opções]
 
 Comandos:
-  link                  Disponibiliza archsetup no terminal do usuário
-  check                 Confere pré-requisitos e o perfil do equipamento
-  doctor                Mostra diagnóstico sem alterar o sistema
+  install               Instala o comando archsetup em ~/.local/bin
+  uninstall             Remove o comando; --restore desfaz configurações gerenciadas
+  doctor                Confere o sistema; --verbose mostra o diagnóstico completo
   aur                   Instala o auxiliar paru para a AUR
   packages [categorias] Instala pacotes oficiais e AUR
   desktop               Configura Xfce, tela de login e touchpad X11
 
-Use --dry-run em link, aur, packages ou desktop para ver a ação sem executá-la.
+Use --dry-run em install, uninstall, aur, packages ou desktop para ver a ação sem executá-la.
 Use archsetup help <comando> para ver opções e exemplos.
 EOF
 }
 
-link_cli() {
-  local dry_run=0 target="$HOME/.local/bin/archsetup" shell_name shell_rc path_line
+install_cli() {
+  local dry_run=0 target="$HOME/.local/bin/archsetup" shell_name shell_rc path_line state_dir
   case "${1:-}" in
     '') ;;
     --dry-run) dry_run=1; shift ;;
     -h|--help)
-      printf 'Uso: archsetup link [--dry-run]\nCria um link em ~/.local/bin e configura o PATH do Bash ou Zsh.\n'
+      printf 'Uso: archsetup install [--dry-run]\nInstala o comando em ~/.local/bin e configura o PATH do Bash ou Zsh.\n'
       return 0
       ;;
-    *) printf 'Opção desconhecida em link: %s\n' "$1" >&2; return 2 ;;
+    *) printf 'Opção desconhecida em install: %s\n' "$1" >&2; return 2 ;;
   esac
-  (( $# == 0 )) || { printf 'link não aceita argumentos extras.\n' >&2; return 2; }
+  (( $# == 0 )) || { printf 'install não aceita argumentos extras.\n' >&2; return 2; }
   (( EUID != 0 )) || { printf 'Erro: execute como usuário comum, sem sudo.\n' >&2; return 1; }
 
   shell_name="${SHELL:-/bin/bash}"
@@ -43,7 +43,7 @@ link_cli() {
   esac
   path_line='export PATH="$HOME/.local/bin:$PATH"'
 
-  printf '==> Vinculação do comando archsetup\n'
+  printf '==> Instalação do comando archsetup\n'
   printf 'Origem: %s\nDestino: %s\n' "$PROJECT_DIR/archsetup" "$target"
   if [[ -n "$shell_rc" ]] && { [[ ! -f "$shell_rc" ]] || ! grep -Fqx "$path_line" "$shell_rc"; }; then
     printf 'PATH persistente: %s\n' "$shell_rc"
@@ -71,6 +71,9 @@ link_cli() {
         cp -p -- "$shell_rc" "$shell_rc.archsetup.bak-$(date +%Y%m%d%H%M%S)"
       fi
       printf '\n%s\n' "$path_line" >> "$shell_rc"
+      state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup"
+      mkdir -p -- "$state_dir"
+      printf '%s\n' "$shell_rc" > "$state_dir/path-rc"
       printf 'PATH configurado em %s. Abra um novo terminal para usar archsetup.\n' "$shell_rc"
     else
       printf 'PATH já configurado em %s.\n' "$shell_rc"
@@ -78,12 +81,14 @@ link_cli() {
   else
     printf 'Inclua ~/.local/bin no PATH do seu shell para usar archsetup como comando.\n'
   fi
-  printf 'Concluído: archsetup está vinculado a este repositório.\n'
+  printf 'Concluído: comando archsetup disponível a partir deste repositório.\n'
 }
 
 module_path() {
   case "$1" in
-    check|aur|packages|desktop) printf '%s/modules/%s.sh' "$PROJECT_DIR" "$1" ;;
+    doctor) printf '%s/modules/doctor.sh' "$PROJECT_DIR" ;;
+    uninstall) printf '%s/modules/uninstall.sh' "$PROJECT_DIR" ;;
+    aur|packages|desktop) printf '%s/modules/%s.sh' "$PROJECT_DIR" "$1" ;;
   esac
 }
 
@@ -94,9 +99,9 @@ case "$command_name" in
       usage
     elif (( $# == 2 )); then
       case "$2" in
-        link) link_cli --help ;;
-        check|packages|aur|desktop) bash "$(module_path "$2")" --help ;;
-        doctor) printf 'Uso: archsetup doctor\nMostra diagnóstico sem alterar o sistema.\n' ;;
+        install) install_cli --help ;;
+        uninstall|doctor) bash "$(module_path "$2")" --help ;;
+        packages|aur|desktop) bash "$(module_path "$2")" --help ;;
         *) printf 'Comando desconhecido: %s\n' "$2" >&2; usage >&2; exit 2 ;;
       esac
     else
@@ -104,16 +109,11 @@ case "$command_name" in
       exit 2
     fi
     ;;
-  link)
+  install)
     shift
-    link_cli "$@"
+    install_cli "$@"
     ;;
-  doctor)
-    shift
-    (( $# == 0 )) || { printf 'doctor não aceita argumentos.\n' >&2; exit 2; }
-    exec bash "$PROJECT_DIR/modules/doctor.sh"
-    ;;
-  check|aur|packages|desktop)
+  uninstall|doctor|aur|packages|desktop)
     shift
     exec bash "$(module_path "$command_name")" "$@"
     ;;

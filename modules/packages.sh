@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$PROJECT_DIR/modules/profile.sh"
+source "$PROJECT_DIR/modules/package-state.sh"
 
 usage() {
   cat <<'EOF'
@@ -214,17 +215,31 @@ if (( ${#aur[@]} > 0 )); then
   fi
 fi
 
+package_tracking_begin
+trap 'package_tracking_finish' EXIT
 printf '\n==> Atualizando o sistema e instalando pacotes oficiais\n'
 sudo -v || fail 'Não foi possível obter acesso sudo.'
 sudo pacman -Syu --needed --noconfirm "${official[@]}"
 
 if [[ -n "${selected[development]:-}" ]]; then
   printf '\n==> Conferindo acesso ao Docker\n'
+  current_user=$(id -un)
+  docker_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup"
+  docker_state="$docker_state_dir/docker-before"
+  if [[ ! -e "$docker_state" ]]; then
+    mkdir -p -- "$docker_state_dir"
+    docker_group_before=no
+    [[ " $(id -nG "$current_user") " != *' docker '* ]] || docker_group_before=yes
+    docker_enabled_before=no
+    systemctl is-enabled --quiet docker.service && docker_enabled_before=yes
+    docker_active_before=no
+    systemctl is-active --quiet docker.service && docker_active_before=yes
+    printf '%s\n%s\n%s\n%s\n' "$current_user" "$docker_group_before" "$docker_enabled_before" "$docker_active_before" > "$docker_state"
+  fi
   if ! getent group docker >/dev/null; then
     sudo groupadd --system docker
     printf 'Grupo docker criado.\n'
   fi
-  current_user=$(id -un)
   if [[ " $(id -nG "$current_user") " == *' docker '* ]]; then
     printf 'Usuário %s já pertence ao grupo docker.\n' "$current_user"
   else
@@ -255,6 +270,19 @@ if [[ -n "${selected[desktop]:-}" && -f /usr/share/applications/brave-browser.de
   if command -v xdg-settings >/dev/null 2>&1 && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
     current_browser=$(xdg-settings get default-web-browser 2>/dev/null || true)
     if [[ "$current_browser" != brave-browser.desktop ]]; then
+      browser_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/browser-before"
+      if [[ ! -e "$browser_state_dir/recorded" ]]; then
+        mkdir -p -- "$browser_state_dir"
+        printf '%s\n' "$current_browser" > "$browser_state_dir/default-browser"
+        for mimeapps in "$HOME/.config/mimeapps.list" "$HOME/.local/share/applications/mimeapps.list"; do
+          label="${mimeapps#"$HOME/"}"
+          if [[ -f "$mimeapps" ]]; then
+            mkdir -p -- "$browser_state_dir/$(dirname -- "$label")"
+            cp -p -- "$mimeapps" "$browser_state_dir/$label"
+          fi
+        done
+        : > "$browser_state_dir/recorded"
+      fi
       xdg-settings set default-web-browser brave-browser.desktop || printf 'Defina o Brave como navegador padrão nas preferências do desktop.\n'
     fi
   else

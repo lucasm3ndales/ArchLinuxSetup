@@ -453,7 +453,7 @@ greeter-session=lightdm-slick-greeter
 EOF
 
 update_file() {
-  local target="$1" source="$2" backup
+  local target="$1" source="$2" backup was_absent=0
   if [[ -f "$target" ]] && sudo cmp -s -- "$source" "$target"; then
     printf 'Já configurado: %s\n' "$target"
     return 0
@@ -462,8 +462,15 @@ update_file() {
     backup="$target.archsetup.bak-$(date +%Y%m%d%H%M%S%N)"
     sudo cp -p -- "$target" "$backup"
     printf 'Backup: %s\n' "$backup"
+  else
+    was_absent=1
   fi
   sudo install -m 644 -- "$source" "$target"
+  if (( was_absent )) || [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created/$(basename -- "$target")" ]]; then
+    local created_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created"
+    mkdir -p -- "$created_dir"
+    printf '%s %s\n' "$(sha256sum -- "$source" | cut -d ' ' -f 1)" "$target" > "$created_dir/$(basename -- "$target")"
+  fi
   printf 'Atualizado: %s\n' "$target"
 }
 
@@ -501,12 +508,20 @@ Section "InputClass"
 EndSection
 EOF
 if [[ ! -f "$touchpad_path" ]] || ! cmp -s "$temporary_touchpad" "$touchpad_path"; then
+  touchpad_was_absent=0
   if [[ -e "$touchpad_path" ]]; then
     backup="$touchpad_path.archlinuxsetup.bak-$(date +%Y%m%d%H%M%S)"
     sudo cp -p -- "$touchpad_path" "$backup"
     printf 'Backup da configuração do touchpad: %s\n' "$backup"
+  else
+    touchpad_was_absent=1
   fi
   sudo install -D -m 644 "$temporary_touchpad" "$touchpad_path"
+  if (( touchpad_was_absent )) || [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created/$(basename -- "$touchpad_path")" ]]; then
+    created_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created"
+    mkdir -p -- "$created_dir"
+    printf '%s %s\n' "$(sha256sum -- "$temporary_touchpad" | cut -d ' ' -f 1)" "$touchpad_path" > "$created_dir/$(basename -- "$touchpad_path")"
+  fi
   printf 'Rolagem natural configurada para a próxima sessão X11.\n'
 else
   printf 'Rolagem natural já configurada; nenhuma alteração necessária.\n'
@@ -526,12 +541,20 @@ Section "InputClass"
 EndSection
 EOF
   if [[ ! -f "$tapping_path" ]] || ! cmp -s "$temporary_tapping" "$tapping_path"; then
+    tapping_was_absent=0
     if [[ -e "$tapping_path" ]]; then
       backup="$tapping_path.archlinuxsetup.bak-$(date +%Y%m%d%H%M%S)"
       sudo cp -p -- "$tapping_path" "$backup"
       printf 'Backup da configuração de toque: %s\n' "$backup"
+    else
+      tapping_was_absent=1
     fi
     sudo install -D -m 644 "$temporary_tapping" "$tapping_path"
+    if (( tapping_was_absent )) || [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created/$(basename -- "$tapping_path")" ]]; then
+      created_dir="${XDG_STATE_HOME:-$HOME/.local/state}/archlinuxsetup/root-created"
+      mkdir -p -- "$created_dir"
+      printf '%s %s\n' "$(sha256sum -- "$temporary_tapping" | cut -d ' ' -f 1)" "$tapping_path" > "$created_dir/$(basename -- "$tapping_path")"
+    fi
     printf 'Toque para clicar configurado para a próxima sessão X11.\n'
   else
     printf 'Toque para clicar já configurado; nenhuma alteração necessária.\n'

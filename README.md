@@ -7,18 +7,18 @@ ArchSetup automatiza parte da pós-instalação do Arch Linux: instala pacotes p
 Execute como usuário comum com acesso a `sudo`, a partir do repositório clonado:
 
 ```bash
-./archsetup link
+./archsetup install
 ```
 
-Isso cria `~/.local/bin/archsetup` como link para o script do repositório e, se necessário, adiciona esse diretório ao PATH do Bash ou Zsh. Abra um novo terminal e confira com `archsetup help`. Mantenha o repositório no mesmo lugar para preservar o link.
+Isso cria `~/.local/bin/archsetup` como link para o script do repositório e, se necessário, adiciona esse diretório ao PATH do Bash ou Zsh. Abra um novo terminal e confira com `archsetup help`. Mantenha o repositório no mesmo lugar para preservar o link. Se o link já aponta para este repositório, um `git pull` atualiza o comando sem exigir outra instalação.
 
 ## Comandos e opções
 
 | Comando | O que faz |
 | --- | --- |
-| `archsetup link [--dry-run]` | Cria `~/.local/bin/archsetup` como link para este repositório e ajusta o PATH do Bash ou Zsh. |
-| `archsetup check [--profile NOME]` | Confere Arch, usuário, compatibilidade do perfil e alguns sinais do layout Btrfs, Timeshift e GRUB. Não altera o sistema. |
-| `archsetup doctor` | Mostra diagnóstico de hardware, discos, sessão e serviços. Não altera o sistema; revise identificadores e UUIDs antes de compartilhar a saída. |
+| `archsetup install [--dry-run]` | Disponibiliza o comando em `~/.local/bin` e ajusta o PATH do Bash ou Zsh; não instala o Arch Linux nem os pacotes das categorias. |
+| `archsetup uninstall [--restore [--packages]] [--dry-run]` | Remove o comando. `--restore` recupera configurações anteriores com backup; `--packages` também remove pacotes novos registrados pelo ArchSetup. |
+| `archsetup doctor [--profile NOME] [--verbose]` | Confere Arch, usuário, perfil e alguns sinais do layout Btrfs, Timeshift e GRUB. Com `--verbose`, também mostra hardware, discos, sessão e serviços. Não altera o sistema. |
 | `archsetup aur [--dry-run]` | Instala o auxiliar `paru` para pacotes da AUR; se ele já existir, não o reinstala. |
 | `archsetup packages [CATEGORIA...] [--profile NOME] [--dry-run]` | Instala os pacotes oficiais e AUR das categorias escolhidas. Sem categoria, usa `base development desktop`. |
 | `archsetup desktop [--profile NOME] [--dry-run]` | Configura Xfce, LightDM/Slick Greeter e touchpad X11. Deve ser aplicado numa sessão X11 do Xfce. |
@@ -26,17 +26,20 @@ Isso cria `~/.local/bin/archsetup` como link para o script do repositório e, se
 
 | Opção | Onde usar | Efeito |
 | --- | --- | --- |
-| `--dry-run` | `link`, `aur`, `packages`, `desktop` | Mostra uma prévia sem instalar pacotes ou alterar arquivos. A prévia não garante que todos os pré-requisitos da aplicação estejam atendidos. |
-| `--profile NOME` | `check`, `packages`, `desktop` | Seleciona explicitamente um perfil de equipamento. `check` e as aplicações validam a compatibilidade; as prévias verificam apenas se o perfil existe. |
+| `--dry-run` | `install`, `uninstall`, `aur`, `packages`, `desktop` | Mostra uma prévia sem instalar pacotes ou alterar arquivos. A prévia não garante que todos os pré-requisitos da aplicação estejam atendidos. |
+| `--restore` | `uninstall` | Recupera configurações anteriores e remove o comando; execute fora da sessão Xfce, em um TTY. |
+| `--packages` | `uninstall --restore` | Remove somente pacotes registrados como novos nas execuções de `aur` e `packages`. |
+| `--profile NOME` | `doctor`, `packages`, `desktop` | Seleciona explicitamente um perfil de equipamento. `doctor` e as aplicações validam a compatibilidade; as prévias verificam apenas se o perfil existe. |
+| `--verbose` | `doctor` | Acrescenta o diagnóstico detalhado à checagem resumida. Revise identificadores e UUIDs antes de compartilhar a saída. |
 | `--help` ou `-h` | Comandos que aceitam opções | Mostra a ajuda do comando. Também é possível usar `archsetup help COMANDO`. |
 
-Execute os comandos como usuário comum. `check` e `doctor` são sempre somente leitura; `sudo` é solicitado somente nas ações que exigem privilégio.
+Execute os comandos como usuário comum. `doctor` é sempre somente leitura; `sudo` é solicitado somente nas ações que exigem privilégio.
 
 ## Uso básico
 
 ```bash
-archsetup check
 archsetup doctor
+archsetup doctor --verbose
 archsetup aur --dry-run
 archsetup aur
 archsetup packages --dry-run
@@ -59,6 +62,8 @@ archsetup packages emulation
 ```
 
 Reexecutar `packages` ignora pacotes já instalados com `--needed`, mas também pode atualizar os demais pacotes do sistema.
+
+Antes de cada instalação, `aur` e `packages` salvam uma lista dos pacotes existentes. Depois, registram somente os pacotes que apareceram nessa execução, incluindo dependências. Os arquivos ficam em `~/.local/state/archlinuxsetup/packages-baseline` e `packages-installed` (ou sob `XDG_STATE_HOME`). Pacotes já existentes não entram na lista de remoção. O registro começa a valer quando esta versão dos scripts é usada; ele não consegue reconstruir instalações de versões anteriores nem distinguir uma instalação feita simultaneamente por outro processo.
 
 Em uma sessão X11 do Xfce, aplique os ajustes do desktop:
 
@@ -92,7 +97,7 @@ Na categoria `development`, o script usa `rustup` e instala a toolchain estável
 Um perfil reúne pacotes e ajustes específicos de um equipamento. Sem `--profile`, os comandos usam apenas as listas compartilhadas. Nenhum perfil é escolhido automaticamente. Para usar um perfil existente:
 
 ```bash
-archsetup check --profile NOME
+archsetup doctor --profile NOME
 archsetup packages --profile NOME --dry-run
 archsetup packages --profile NOME
 ```
@@ -109,7 +114,18 @@ Também cria uma regra Xorg restrita a touchpads para rolagem natural. Alguns pe
 
 ## Limites e recuperação
 
-ArchSetup não configura boot, criptografia, partições, drivers de GPU, energia ou snapshots. Antes de instalar muitos pacotes ou aplicar ajustes, crie um snapshot ou backup com a ferramenta de recuperação do seu sistema. `archsetup check` informa o que encontrou sobre Btrfs, Timeshift e GRUB, mas não garante que uma restauração esteja pronta; teste esse processo no equipamento em que será usado.
+ArchSetup não configura boot, criptografia, partições, drivers de GPU, energia ou snapshots. Antes de instalar muitos pacotes ou aplicar ajustes, crie um snapshot ou backup com a ferramenta de recuperação do seu sistema. `archsetup doctor` informa o que encontrou sobre Btrfs, Timeshift e GRUB, mas não garante que uma restauração esteja pronta; teste esse processo no equipamento em que será usado.
+
+Para remover apenas o comando, use `archsetup uninstall`. A linha do PATH só é retirada quando existe registro de que foi adicionada pelo ArchSetup. Para recuperar configurações anteriores, saia da sessão gráfica do Xfce e execute em um TTY:
+
+```bash
+archsetup uninstall --restore --dry-run
+archsetup uninstall --restore
+```
+
+O comando restaura o primeiro backup do Xfce e os backups originais de LightDM e touchpad, além do estado anterior registrado para Docker e dos arquivos `mimeapps.list` capturados antes de mudar o navegador padrão. Arquivos sem backup ou sem prova de que foram criados pelo ArchSetup são preservados. A restauração guarda uma cópia dos arquivos atuais em `~/.local/state/archlinuxsetup/backups/` e junto aos arquivos de sistema antes de substituí-los. Ajustes feitos com versões anteriores podem não ter registro suficiente para desfazer tudo automaticamente.
+
+Para incluir pacotes instalados pelos scripts, revise a lista primeiro com `archsetup uninstall --restore --packages --dry-run` e depois execute `archsetup uninstall --restore --packages`. Essa opção só usa `packages-installed` e não remove pacotes que já existiam antes. A lista pode incluir dependências que você passou a usar em outros projetos; revise os nomes antes de executar. O `pacman` recusa a remoção se algum pacote ainda for necessário por outro. Pacotes atualizados que já existiam antes não voltam à versão antiga; para desfazer uma atualização do sistema, use um snapshot ou backup verificado.
 
 ## Estrutura
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$PROJECT_DIR/modules/package-state.sh"
 
 usage() {
   printf 'Uso: archsetup aur [--dry-run]\nInstala o auxiliar paru para pacotes da AUR.\n'
@@ -56,6 +58,13 @@ for command_name in sudo pacman mktemp; do
   command -v "$command_name" >/dev/null 2>&1 || fail "Comando ausente: $command_name"
 done
 
+package_tracking_begin
+build_dir=''
+cleanup() {
+  package_tracking_finish
+  [[ -z "$build_dir" ]] || rm -rf -- "$build_dir"
+}
+trap cleanup EXIT
 printf '\n==> Preparando ferramentas de compilação\n'
 sudo -v || fail 'Não foi possível obter acesso sudo.'
 build_packages=(git base-devel)
@@ -80,7 +89,6 @@ command -v cargo >/dev/null 2>&1 || fail 'cargo não encontrado após preparar R
 
 printf '\n==> Baixando o PKGBUILD do paru\n'
 build_dir=$(mktemp -d -t archlinuxsetup-paru.XXXXXXXX)
-trap 'rm -rf -- "$build_dir"' EXIT
 git clone -- https://aur.archlinux.org/paru.git "$build_dir/paru"
 [[ -f "$build_dir/paru/PKGBUILD" ]] || fail 'O repositório clonado não contém PKGBUILD.'
 

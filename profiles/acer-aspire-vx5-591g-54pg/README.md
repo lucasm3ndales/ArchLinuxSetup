@@ -1,6 +1,6 @@
 # Acer Aspire VX5-591G-54PG
 
-O proprietário confirmou o modelo, CPU Intel Core i5-7300HQ, GTX 1050, 8 GB de RAM, SSD NVMe de 256 GB adicionado e HD de 1 TB. IDs dos dispositivos, modelos dos discos e drivers carregados ainda precisam ser conferidos com `archsetup doctor` no notebook. Não registre número de série ou SNID.
+O proprietário confirmou o modelo, CPU Intel Core i5-7300HQ, GTX 1050, 8 GB de RAM, SSD NVMe de 256 GB adicionado e HD de 1 TB. IDs dos dispositivos, modelos dos discos e drivers carregados ainda precisam ser conferidos com `archsetup doctor --verbose` no notebook. Não registre número de série ou SNID.
 
 ## Instalação do Arch
 
@@ -14,7 +14,7 @@ O SSD é alvo do archinstall. Para a nova instalação, o plano é LUKS, Btrfs c
 | Interface | Xfce X11; LightDM com Slick Greeter selecionados no archinstall. `archsetup desktop --profile acer-aspire-vx5-591g-54pg` aplica o visual e os ajustes do touchpad após o primeiro login. |
 | Console | Conferir a fonte escolhida no primeiro boot. O ArchSetup não configura a fonte do console. |
 
-Depois do primeiro boot, confira com `lsblk -f`, `findmnt /`, `findmnt /boot` e `archsetup check --profile acer-aspire-vx5-591g-54pg` o sistema de arquivos, as montagens e as ferramentas instaladas. Verifique também zram, GRUB, Timeshift e os kernels escolhidos. Os comandos deste projeto não configuram boot, criptografia ou recuperação; consulte [Recuperação do sistema](#recuperação-do-sistema).
+Depois do primeiro boot, confira com `lsblk -f`, `findmnt /`, `findmnt /boot` e `archsetup doctor --profile acer-aspire-vx5-591g-54pg` o sistema de arquivos, as montagens e as ferramentas instaladas. Verifique também zram, GRUB, Timeshift e os kernels escolhidos. Os comandos deste projeto não configuram boot, criptografia ou recuperação; consulte [Recuperação do sistema](#recuperação-do-sistema).
 
 ## Recuperação do sistema
 
