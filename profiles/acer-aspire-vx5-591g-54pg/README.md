@@ -11,7 +11,7 @@ O SSD é alvo do archinstall. Para a nova instalação, o plano é LUKS, Btrfs c
 | Hostname e usuário | `dev-machine`; usuário `dev` com acesso a `sudo` |
 | Localização | Espelhos brasileiros; `America/Sao_Paulo`; `en_US.UTF-8`; teclado ABNT2 |
 | Rede e áudio | NetworkManager; PipeWire |
-| Interface | Xfce X11; LightDM com Slick Greeter selecionados no archinstall. `archsetup greeter` aplica o visual Nordic após o primeiro login. |
+| Interface | Xfce X11; LightDM com Slick Greeter selecionados no archinstall. `archsetup desktop --profile acer-aspire-vx5-591g-54pg` aplica o visual e os ajustes do touchpad após o primeiro login. |
 | Console | Conferir a fonte escolhida no primeiro boot. A categoria `base` inclui `terminus-font` para eventual uso de `ter-v16n`. |
 
 Depois do primeiro boot, confira com `lsblk -f`, `findmnt /`, `findmnt /boot` e `archsetup check --profile acer-aspire-vx5-591g-54pg` o sistema de arquivos, as montagens e as ferramentas instaladas. Verifique também zram, GRUB, Timeshift e os kernels escolhidos. Os comandos deste projeto não configuram boot, criptografia ou recuperação; consulte [Recuperação do sistema](#recuperação-do-sistema).
@@ -39,7 +39,7 @@ Antes de executar `archsetup packages`, crie no Timeshift um snapshot manual do 
 | NVIDIA | ID PCI, kernels, headers, Secure Boot e driver atual. Escolher um ramo compatível com Pascal e testar PRIME e bibliotecas de 32 bits no notebook. |
 | Wi-Fi/Bluetooth | Chipset, firmware, `rfkill`, áudio e periféricos. Confirmar o estado de `bluetooth.service` no notebook. |
 | Áudio | Microfone, alto-falantes, fone e saída HDMI. Instalar firmware adicional só se o dispositivo exigir. |
-| Touchpad | Detecção pelo libinput, Fn+F7, toque para clicar, rolagem com dois dedos e rejeição da palma. A rolagem natural compartilhada vem de `archsetup touchpad`. |
+| Touchpad | Detecção pelo libinput, Fn+F7, toque para clicar, rolagem com dois dedos e rejeição da palma. Os ajustes compartilhados e o toque para clicar vêm de `archsetup desktop --profile acer-aspire-vx5-591g-54pg`. |
 | Energia e teclas | Suspensão, tampa, bateria, brilho, iluminação do teclado e retorno do suspend. |
 | SSD e Timeshift | Modelo e saúde do SSD; subvolumes, montagens, retenção de snapshots e teste da restauração com GRUB. |
 

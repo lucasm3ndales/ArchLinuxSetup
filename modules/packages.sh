@@ -91,6 +91,29 @@ for category in "${categories[@]}"; do
   fi
 done
 
+for package in "${aur[@]}"; do
+  [[ -z "${seen_official[$package]:-}" ]] || fail "Pacote $package aparece nas listas oficial e AUR. Escolha apenas uma origem."
+done
+
+rust_provider=''
+if [[ -n "${seen_official[rustup]:-}" ]] && command -v pacman >/dev/null 2>&1; then
+  if pacman -Qq rustup >/dev/null 2>&1; then
+    rust_provider=rustup
+  elif pacman -Qq rust >/dev/null 2>&1; then
+    rust_provider=rust
+    filtered_official=()
+    for package in "${official[@]}"; do
+      [[ "$package" == rustup ]] || filtered_official+=("$package")
+    done
+    official=("${filtered_official[@]}")
+    unset 'seen_official[rustup]'
+  else
+    rust_provider=rustup
+  fi
+elif [[ -n "${seen_official[rustup]:-}" ]]; then
+  rust_provider=rustup
+fi
+
 printf '==> %s de pacotes\n' "$([[ "$dry_run" == 1 ]] && printf 'Prévia' || printf 'Instalação')"
 printf 'Perfil: %s\n' "${profile:-nenhum (somente pacotes compartilhados)}"
 printf 'Categorias:'
@@ -133,11 +156,14 @@ if command -v pacman >/dev/null 2>&1; then
   printf '\nResumo: %s instalados; %s ausentes.\n' "$installed_count" "$missing_count"
 fi
 
-if [[ -n "${seen_official[rustup]:-}" ]] && command -v pacman >/dev/null 2>&1 && pacman -Qq rust >/dev/null 2>&1; then
-  printf '\nAviso: rust já está instalado. A categoria development seleciona rustup; revise eventuais conflitos apresentados pelo pacman.\n'
+if [[ "$rust_provider" == rust ]]; then
+  printf '\nRust: rust já está instalado; rustup foi retirado da seleção para evitar conflito.\n'
 fi
 
 if (( dry_run )); then
+  if (( ${#aur[@]} > 0 )) && ! command -v paru >/dev/null 2>&1 && ! command -v yay >/dev/null 2>&1; then
+    printf '\nDependência: archsetup aur instala o auxiliar necessário para os pacotes AUR.\n'
+  fi
   if [[ -n "${selected[development]:-}" ]]; then
     printf '\nDocker: adicionar o usuário atual ao grupo docker, se necessário, e habilitar/iniciar docker.service.\n'
   fi
@@ -163,10 +189,6 @@ fi
 if [[ -n "$profile" ]]; then
   validate_profile_compatibility "$profile" || fail 'Aplicação recusada para este perfil.'
 fi
-if [[ -n "${seen_official[rustup]:-}" ]] && pacman -Qq rust >/dev/null 2>&1; then
-  fail 'rust já está instalado e compartilha arquivos com rustup. Remova rust manualmente após conferir seus dependentes e execute o comando novamente.'
-fi
-
 if [[ -n "${selected[gaming]:-}" ]]; then
   command -v pacman-conf >/dev/null 2>&1 || fail 'pacman-conf não encontrado.'
   pacman-conf --repo-list | grep -qx multilib || fail 'Ative [multilib] em /etc/pacman.conf antes de instalar gaming.'
@@ -179,12 +201,22 @@ if (( ${#aur[@]} > 0 )); then
   elif command -v yay >/dev/null 2>&1; then
     aur_helper=yay
   else
-    fail 'Pacotes AUR selecionados. Execute archsetup paru para instalar o auxiliar AUR.'
+    printf '\nDependência: os pacotes AUR exigem um auxiliar. archsetup aur instala o paru.\n'
+    [[ -t 0 ]] || fail 'Execute archsetup aur em um terminal interativo e tente novamente.'
+    printf 'Executar archsetup aur agora? [s/N] '
+    IFS= read -r answer || fail 'Não foi possível ler a resposta.'
+    case "$answer" in
+      s|S|sim|SIM|Sim) bash "$PROJECT_DIR/archsetup" aur ;;
+      *) fail 'Dependência não executada. Instale o auxiliar e tente novamente.' ;;
+    esac
+    command -v paru >/dev/null 2>&1 || fail 'archsetup aur terminou, mas paru não foi encontrado no PATH.'
+    aur_helper=paru
   fi
 fi
 
 printf '\n==> Atualizando o sistema e instalando pacotes oficiais\n'
-sudo pacman -Syu --needed "${official[@]}"
+sudo -v || fail 'Não foi possível obter acesso sudo.'
+sudo pacman -Syu --needed --noconfirm "${official[@]}"
 
 if [[ -n "${selected[development]:-}" ]]; then
   printf '\n==> Conferindo acesso ao Docker\n'
@@ -214,8 +246,8 @@ if [[ -n "${selected[development]:-}" ]]; then
 fi
 
 if (( ${#aur[@]} > 0 )); then
-  printf '\n==> Instalando pacotes AUR com %s\nRevise os PKGBUILDs apresentados.\n' "$aur_helper"
-  "$aur_helper" -S --needed "${aur[@]}"
+  printf '\n==> Instalando pacotes AUR com %s\n' "$aur_helper"
+  "$aur_helper" -S --needed --noconfirm "${aur[@]}"
 fi
 
 if [[ -n "${selected[desktop]:-}" && -f /usr/share/applications/brave-browser.desktop ]]; then
@@ -230,7 +262,7 @@ if [[ -n "${selected[desktop]:-}" && -f /usr/share/applications/brave-browser.de
   fi
 fi
 
-if [[ -n "${selected[development]:-}" ]]; then
+if [[ "$rust_provider" == rustup ]]; then
   printf '\n==> Configurando Rust com rustup\n'
   if rustup toolchain list | grep -Fq '(default)'; then
     printf 'Toolchain padrão do Rust já configurada.\n'

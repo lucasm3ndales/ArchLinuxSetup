@@ -18,44 +18,38 @@ Isso cria `~/.local/bin/archsetup` como link para o script do repositório e, se
 | --- | --- |
 | `archsetup check` | Confere pré-requisitos e informa o layout de recuperação detectado, sem alterar o sistema. |
 | `archsetup doctor` | Mostra um diagnóstico somente leitura. Revise identificadores antes de compartilhar a saída. |
-| `archsetup paru` | Prepara o auxiliar AUR após revisão do PKGBUILD. |
+| `archsetup aur` | Exibe o PKGBUILD e instala o auxiliar paru para a AUR. |
 | `archsetup packages [categorias]` | Instala pacotes oficiais e AUR das categorias escolhidas. |
-| `archsetup xfce` | Aplica tema, fontes, painel e atalhos a uma sessão X11 do Xfce. |
-| `archsetup greeter` | Aplica o visual Nordic ao LightDM com Slick Greeter. |
-| `archsetup touchpad` | Ativa rolagem natural em touchpads X11. |
+| `archsetup desktop` | Configura Xfce, LightDM/Slick Greeter e touchpad X11. |
 
-Use `archsetup help <comando>` para ver as opções. `link`, `paru`, `packages`, `xfce`, `greeter` e `touchpad` aceitam `--dry-run`; a prévia não instala pacotes nem altera arquivos. `check` e `doctor` são sempre somente leitura.
+Use `archsetup help <comando>` para ver as opções. `link`, `aur`, `packages` e `desktop` aceitam `--dry-run`; a prévia não instala pacotes nem altera arquivos. `check` e `doctor` são sempre somente leitura.
 
 ## Uso básico
 
 ```bash
 archsetup check
 archsetup doctor
-archsetup paru --dry-run
-archsetup paru
+archsetup aur --dry-run
+archsetup aur
 archsetup packages --dry-run
 archsetup packages
 ```
 
-O comando `packages` usa `base development desktop` quando nenhuma categoria é informada. Como `desktop` inclui pacotes AUR, a sequência padrão exige `paru` ou um `yay` já instalado. Para instalar só categorias sem AUR, você pode omitir essa etapa:
+O comando `packages` usa `base development desktop` quando nenhuma categoria é informada. Se os pacotes escolhidos exigirem um auxiliar AUR e não houver `paru` nem `yay`, o comando oferece executar `archsetup aur` antes de instalar. Para instalar só categorias sem AUR:
 
 ```bash
 archsetup packages base development --dry-run
 archsetup packages base development
 ```
 
-Depois de instalar os pacotes, aplique apenas os ajustes que correspondem ao seu ambiente:
+Em uma sessão X11 do Xfce, aplique os ajustes do desktop:
 
 ```bash
-archsetup xfce --dry-run
-archsetup xfce
-archsetup greeter --dry-run
-archsetup greeter
-archsetup touchpad --dry-run
-archsetup touchpad
+archsetup desktop --dry-run
+archsetup desktop
 ```
 
-`xfce` requer uma sessão X11 do Xfce. `greeter` requer LightDM habilitado e Slick Greeter instalado. Esses componentes não são instalados pelas categorias de pacotes do ArchSetup.
+`desktop` requer Xfce em sessão X11, LightDM habilitado e Slick Greeter instalado. Se faltar um pacote da categoria `desktop` necessário aos ajustes, o comando oferece executar `archsetup packages desktop` antes de alterar configurações. Xfce, LightDM e Slick Greeter devem estar instalados e ativos no sistema; a categoria de pacotes não os instala.
 
 ## Categorias de pacotes
 
@@ -67,11 +61,13 @@ archsetup touchpad
 | `gaming` | Steam, GameMode e MangoHud. |
 | `emulation` | RetroArch, Dolphin, PCSX2 e RPCS3. |
 
-As listas ficam em `packages/official/` e `packages/aur/`. O script elimina nomes repetidos e usa `pacman -Syu --needed` e `paru -S --needed` (ou `yay`), sem suprimir as perguntas dessas ferramentas. Reexecutar uma categoria não duplica pacotes, mas pode atualizar o sistema. `gaming` exige `[multilib]` habilitado. A prévia mostra quais pacotes já estão instalados quando `pacman` está disponível; ela não calcula dependências nem versões futuras.
+As listas ficam em `packages/official/` e `packages/aur/`. O script elimina nomes repetidos e usa `pacman -Syu --needed --noconfirm` e `paru -S --needed --noconfirm` (ou `yay`). Sem `--dry-run`, as confirmações de instalação são aceitas automaticamente; erros e conflitos que não puderem ser resolvidos interrompem o comando. Reexecutar uma categoria não duplica pacotes, mas pode atualizar o sistema. `gaming` exige `[multilib]` habilitado. A prévia mostra quais pacotes já estão instalados quando `pacman` está disponível; ela não calcula dependências nem versões futuras.
 
-`paru` instala `git` e `base-devel`, mostra o PKGBUILD e só executa `makepkg -si` após confirmação digitada. Revise também os PKGBUILDs apresentados pelo auxiliar AUR ao instalar outros pacotes. Consulte a [ArchWiki sobre a AUR](https://wiki.archlinux.org/title/Arch_User_Repository).
+`aur` instala o auxiliar `paru`. Para isso, instala `git` e `base-devel` e, se não houver Rust instalado, instala `rustup` e configura a toolchain estável antes de compilar. Se `rust` já estiver instalado, usa essa ferramenta existente para a compilação. O comando mostra o PKGBUILD, lista os demais arquivos recebidos e executa `makepkg -si --noconfirm` como usuário comum. `packages` instala pacotes AUR sem perguntas de confirmação; confira os PKGBUILDs antes de executá-lo. Consulte a [ArchWiki sobre a AUR](https://wiki.archlinux.org/title/Arch_User_Repository).
 
-Na categoria `development`, o script instala a toolchain Rust estável com rustup somente se não houver uma padrão. Se `rust` já estiver instalado, a aplicação para antes de instalar pacotes: confira os dependentes antes de trocá-lo por `rustup`. Docker Desktop não é instalado. O script adiciona o usuário atual ao grupo `docker` se necessário, inicia `docker.service` e o habilita para iniciar no boot. Saia e entre novamente para ativar a associação ao grupo; membros do grupo `docker` têm privilégios equivalentes aos de root.
+Os comandos que precisam de privilégios validam o `sudo` uma vez antes de alterar o sistema. O próprio `sudo` mantém uma autorização temporária no terminal; o projeto não lê nem salva sua senha. Se essa autorização expirar durante uma instalação longa, o `sudo` pode pedir a senha novamente.
+
+Na categoria `development`, o script usa `rustup` e instala a toolchain estável se não houver uma padrão. Se o pacote `rust` já estiver instalado, usa essa instalação e retira `rustup` da seleção, sem remover pacotes. Para migrar depois para o gerenciador de versões, confira os dependentes com `pacman -Qi rust`, remova `rust` com `sudo pacman -Rns rust` somente se a remoção for segura e execute `archsetup packages development` novamente. Docker Desktop não é instalado. O script adiciona o usuário atual ao grupo `docker` se necessário, inicia `docker.service` e o habilita para iniciar no boot. Saia e entre novamente para ativar a associação ao grupo; membros do grupo `docker` têm privilégios equivalentes aos de root.
 
 ## Perfis
 
@@ -87,11 +83,11 @@ Substitua `NOME` pelo identificador de uma pasta em `profiles/`. Antes de instal
 
 ## Ajustes do desktop
 
-`xfce` aplica Nordic às janelas e aplicativos, Nordzy-dark aos ícones, Nordzy-cursors ao cursor e Inter à interface. Configura um painel superior único de 48 px com menu do Arch, busca, tarefas agrupadas, espaços de trabalho numerados, relógio e indicadores das teclas Lock. Também configura `Alt+F1` e `ksuperkey` para abrir o menu com a tecla Super. Salva a configuração anterior em `~/.local/state/archlinuxsetup/backups/` antes de alterar o Xfce. Repetir o comando não duplica painéis ou plugins.
+`desktop` aplica Nordic às janelas e aplicativos, Nordzy-dark aos ícones, Nordzy-cursors ao cursor e Inter à interface. Configura um painel superior único de 48 px com menu do Arch, busca, tarefas agrupadas, espaços de trabalho numerados, relógio e indicadores das teclas Lock. Também configura `Alt+F1` e `ksuperkey` para abrir o menu com a tecla Super. Salva a configuração anterior em `~/.local/state/archlinuxsetup/backups/` antes de alterar o Xfce. Repetir o comando não duplica painéis ou plugins.
 
-`greeter` aplica os mesmos tema, ícones, cursor e fonte ao Slick Greeter, com fundo escuro e logo do Arch. Faz backup dos arquivos alterados em `/etc/lightdm/`, preserva as demais opções e não encerra a sessão atual. A nova aparência aparece no próximo login.
+O mesmo comando aplica tema, ícones, cursor e fonte ao Slick Greeter, com fundo escuro e logo do Arch. Faz backup dos arquivos alterados em `/etc/lightdm/`, preserva as demais opções e não encerra a sessão atual. A nova aparência aparece no próximo login.
 
-`touchpad` cria uma regra Xorg restrita a touchpads para rolagem natural. Alguns perfis acrescentam ajustes específicos, após validação do equipamento. O script faz backup antes de substituir suas regras; as mudanças valem na próxima sessão X11.
+Também cria uma regra Xorg restrita a touchpads para rolagem natural. Alguns perfis acrescentam ajustes específicos, após validação do equipamento. O script faz backup antes de substituir suas regras; as mudanças valem na próxima sessão X11.
 
 ## Limites e recuperação
 
