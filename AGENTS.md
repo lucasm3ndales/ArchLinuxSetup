@@ -4,23 +4,24 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 
 ## Interface e escopo
 
-- `archsetup` é a única interface pública. Os comandos são `install`, `uninstall`, `doctor`, `aur`, `packages` e `desktop`. Não mantenha os nomes antigos `link` e `check`. Use `--dry-run` para prévias sem alterações; não reintroduza `plan/apply`.
-- `modules/packages.sh` e `modules/aur.sh` tratam pacotes e AUR. `modules/doctor.sh` faz a checagem resumida e, com `--verbose`, mostra o diagnóstico detalhado. `modules/desktop.sh` reúne os ajustes Xfce, LightDM/Slick Greeter e touchpad X11.
+- `archsetup` é a única interface pública. Compile com `cargo build --release`; `link` aponta `~/.local/bin/archsetup` para `target/release/archsetup`. `src/cli.rs` interpreta os comandos, `src/commands/` os executa, e `src/project.rs` localiza o repositório. Todos os comandos públicos têm implementação Rust. Use `--dry-run` para prévias sem alterações; não reintroduza `plan/apply` nem os nomes antigos `install`, `uninstall` ou `packages`.
+- O Rust usa uma arquitetura hexagonal enxuta em um crate. A CLI e os adaptadores dependem dos casos de uso, nunca o contrário. Defina portas pequenas por caso de uso para leitura ou alteração externa; mantenha regras e decisões em `src/application/`. Não crie crates ou traits sem necessidade. `doctor` resumido e o planejamento de `link` já usam essa divisão; o diagnóstico detalhado ainda está em migração.
+- `src/adapters/desktop/` aplica os ajustes Xfce, LightDM/Slick Greeter e touchpad X11. `restore` preserva o comando instalado; `unlink` remove somente o link e o PATH registrado. O código Bash legado foi removido; um link antigo para o launcher pode ser atualizado com `./target/release/archsetup link` após compilar.
 - O HD secundário será configurado manualmente. Não adicione formatação ou desbloqueio ao CLI sem um novo pedido explícito. O SSD é instalado pelo archinstall. Boot, driver NVIDIA, energia e recuperação de snapshots não estão implementados.
 - Não crie diretórios vazios como marcadores de funcionalidades futuras.
 
 ## Pacotes e perfis
 
-- `packages/official/<categoria>.txt` e `packages/aur/<categoria>.txt` são listas comuns. `profiles/<identificador>/` contém dados e pacotes próprios da máquina. Hoje existe apenas `acer-aspire-vx5-591g-54pg`.
+- `packages/official/<categoria>.txt` e `packages/aur/<categoria>.txt` são listas comuns. As categorias são `base`, `development`, `apps`, `theme`, `desktop`, `gaming` e `emulation`; o padrão sem categoria é `base development apps theme desktop`. `profiles/<identificador>/` contém dados e pacotes próprios da máquina. Hoje existe apenas `acer-aspire-vx5-591g-54pg`.
 - Sem `--profile`, use somente as listas comuns. Nunca escolha um perfil automaticamente.
 - Classifique pacotes pela função. Coloque dependências de GPU, CPU ou outro dispositivo no perfil. Prefira pacotes oficiais; use nomes exatos do Arch. Cada linha contém um pacote, sem argumentos de shell; linhas vazias e comentários iniciados por `#` são aceitos.
 - Não há configuração salva do archinstall no repositório. Antes de adicionar um pacote, confira no sistema alvo se o archinstall já o instala diretamente, por um grupo ou como dependência. `xfce4-verve-plugin` vem de `xfce4-goodies`; o grupo de pacotes `xfce` depende dele. `xfce4-kbdleds-plugin` fica na lista AUR `desktop`.
 - Atualize a tabela de categorias do `README.md` ao mudar uma lista.
-- `--dry-run` não deve alterar arquivos, pacotes ou configurações. Antes da primeira alteração, valide os pré-requisitos. Rode os scripts como usuário comum e use `sudo` somente quando necessário.
-- Sem `--dry-run`, `aur` e `packages` instalam com `--noconfirm`, sem frases de confirmação adicionais. `aur` mostra o PKGBUILD e lista os demais arquivos antes de executar `makepkg`; nunca execute `makepkg` como root. `packages` prefere `paru`, mas aceita `yay` existente. Se nenhum auxiliar estiver disponível e houver pacotes AUR selecionados, informe a dependência e ofereça executar `archsetup aur` antes de instalar. Não leia nem armazene a senha do usuário; use o cache temporário do próprio `sudo`.
-- `aur` instala `rustup` antes da compilação apenas se não houver `rust` ou `rustup`. `packages development` usa `rust` instalado e omite `rustup` da seleção nesse caso; nunca remova `rust` automaticamente. Inicialize a toolchain estável apenas quando `rustup` for o provedor escolhido. Verifique a seleção também em `--dry-run`.
-- `packages development` instala Docker Engine e Compose, adiciona o usuário atual ao grupo `docker` somente se necessário, inicia `docker.service` e o habilita para iniciar no boot. Faça essas ações de modo idempotente. Avise que a nova associação ao grupo exige novo login.
-- `aur` e `packages` registram o inventário de pacotes antes de instalar e os pacotes novos após cada execução, inclusive em falhas parciais. `uninstall --restore --packages` remove somente os novos registrados, após validar dependências com `pacman -R --print`; não use `-Rns` nem infira pacotes a partir das listas do repositório. A opção padrão de `uninstall` não remove pacotes.
+- `--dry-run` não deve alterar arquivos, pacotes ou configurações. Antes da primeira alteração, valide os pré-requisitos. Rode os comandos como usuário comum e use `sudo` somente quando necessário.
+- Sem `--dry-run`, `aur` e `pkg` instalam com `--noconfirm`, sem frases de confirmação adicionais. `aur` mostra o PKGBUILD e lista os demais arquivos antes de executar `makepkg`; nunca execute `makepkg` como root. `pkg` prefere `paru`, mas aceita `yay` existente. Se nenhum auxiliar estiver disponível e houver pacotes AUR selecionados, informe a dependência e ofereça executar `archsetup aur` antes de instalar. Não leia nem armazene a senha do usuário; use o cache temporário do próprio `sudo`.
+- `aur` instala `rustup` antes da compilação apenas se não houver `rust` ou `rustup`. `pkg development` usa `rust` instalado e omite `rustup` da seleção nesse caso; nunca remova `rust` automaticamente. Inicialize a toolchain estável apenas quando `rustup` for o provedor escolhido. Verifique a seleção também em `--dry-run`.
+- `pkg development` instala Docker Engine e Compose, adiciona o usuário atual ao grupo `docker` somente se necessário, inicia `docker.service` e o habilita para iniciar no boot. Faça essas ações de modo idempotente. Avise que a nova associação ao grupo exige novo login.
+- `aur` e `pkg` registram o inventário de pacotes antes de instalar e os pacotes novos após cada execução, inclusive em falhas parciais. `restore --packages` remove somente os novos registrados, após validar dependências com `pacman -R --print`; não use `-Rns` nem infira pacotes a partir das listas do repositório. `restore` sem essa opção não remove pacotes; `unlink` nunca remove pacotes.
 
 ## Hardware e dados
 
@@ -34,9 +35,9 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 
 ## Xfce
 
-- Temas, fontes e layout são comuns a todas as máquinas. `desktop` roda como usuário comum numa sessão X11 do Xfce e configura Xfce, LightDM/Slick Greeter e touchpad. Se faltarem pacotes da categoria `desktop` necessários ao comando, ofereça executar `archsetup packages desktop` antes de alterar arquivos; não instale ou substitua Xfce ou o gerenciador de login automaticamente.
+- Temas, fontes e layout são comuns a todas as máquinas. `desktop` configura somente Xfce e roda como usuário comum numa sessão X11 do Xfce. Exija `xfce4-session` e `xfce4-panel` instalados e a sessão Xfce ativa antes de qualquer alteração; `all` exige isso antes de executar `aur` ou `pkg`, e `doctor` informa a condição como aviso. Se faltarem pacotes das categorias `desktop` ou `theme` necessários ao comando, ofereça executar `archsetup pkg desktop theme` antes de alterar arquivos. Xfce, LightDM e Slick Greeter são pré-requisitos instalados pelo archinstall ou manualmente; não os instale ou substitua automaticamente.
 - Faça backup antes de mudar Xfconf ou painéis. Repetir o comando não deve duplicar painéis ou plugins.
-- `uninstall --restore` deve usar o primeiro backup anterior às alterações, preservar arquivos sem origem comprovada e restaurar os XMLs do Xfce somente fora da sessão gráfica.
+- `restore` deve usar o primeiro backup anterior às alterações, preservar arquivos sem origem comprovada e restaurar os XMLs do Xfce somente fora da sessão gráfica.
 - O painel superior usa tarefas nativas agrupadas por aplicativo e limitadas ao espaço atual, busca Verve, espaços de trabalho, relógio com dia/mês e hora e `xfce4-kbdleds-plugin`. Reutilize o relógio existente e não recrie a dock inferior. Ao migrar, remova apenas o Genmon identificado como indicador antigo do projeto e preserve o script anterior no backup. O menu usa `/usr/share/pixmaps/archlinux-logo.svg`, fornecido por `filesystem`.
 - Reutilize o Whisker Menu existente com o logo do Arch; se ele não existir, use o menu de aplicativos. Não deixe dois menus no painel.
 - A configuração ativa usa Nordic escuro para GTK/xfwm4, Nordzy-dark para ícones, Nordzy-cursors para cursor e Inter para a interface. Fira Code é a única fonte extra para código. As variantes Nordic escura/claras ficam instaladas, mas não são aplicadas automaticamente.
@@ -45,9 +46,10 @@ Este repositório automatiza parte da pós-instalação do Arch Linux. Mantenha 
 
 ## Verificação
 
-- Execute `bash -n` nos scripts Bash alterados.
-- Para listas de pacotes, confira `archsetup packages --dry-run` com e sem o perfil Acer e teste as categorias alteradas isoladamente. Perfis e categorias inválidos devem ser recusados.
-- Confira `archsetup aur --dry-run`, `archsetup desktop --dry-run` e `archsetup install --dry-run`, inclusive a rejeição de argumentos inválidos. Confirme que as prévias não alteram arquivos. Teste os fluxos de dependência ausente, aceita e recusada com comandos simulados; nunca instale pacotes na máquina de desenvolvimento.
-- Confira `archsetup uninstall --dry-run` e `archsetup uninstall --restore --packages --dry-run`; teste a criação e remoção do link com um HOME temporário. Nunca execute a restauração real na máquina de desenvolvimento.
-- Confira `archsetup doctor`, `archsetup doctor --verbose` e `archsetup doctor --profile acer-aspire-vx5-591g-54pg`. Em máquina incompatível, o perfil deve falhar sem alterações; só use `packages` com perfil e sem `--dry-run` no Acer real.
-- Não execute `packages`, `aur` ou `desktop` sem `--dry-run` na máquina de desenvolvimento. Teste a aplicação num Arch alvo; para `desktop`, use uma sessão X11 real do Xfce com LightDM/Slick Greeter.
+- Ao alterar Rust, execute `cargo fmt --check`, `cargo test` e `cargo build --release`. Teste o binário com um repositório e HOME temporários; nenhum teste deve instalar pacotes na máquina de desenvolvimento.
+- Após alterar o código, recompile o binário Rust; não restaure o launcher nem os módulos Bash.
+- Para listas de pacotes, confira `archsetup pkg --dry-run` com e sem o perfil Acer e teste as categorias alteradas isoladamente. Perfis e categorias inválidos devem ser recusados.
+- Confira `archsetup aur --dry-run`, `archsetup desktop --dry-run` e `archsetup link --dry-run`, inclusive a rejeição de argumentos inválidos. Confirme que as prévias não alteram arquivos. Teste os fluxos de dependência ausente, aceita e recusada com comandos simulados; nunca instale pacotes na máquina de desenvolvimento.
+- Confira `archsetup unlink --dry-run` e `archsetup restore --packages --dry-run`; teste a criação e remoção do link com um HOME temporário. Nunca execute a restauração real na máquina de desenvolvimento.
+- Confira `archsetup doctor`, `archsetup doctor --verbose` e `archsetup doctor --profile acer-aspire-vx5-591g-54pg`. Em máquina incompatível, o perfil deve falhar sem alterações; só use `pkg` com perfil e sem `--dry-run` no Acer real.
+- Não execute `pkg`, `aur` ou `desktop` sem `--dry-run` na máquina de desenvolvimento. Teste a aplicação num Arch alvo; para `desktop`, use uma sessão X11 real do Xfce com LightDM/Slick Greeter.

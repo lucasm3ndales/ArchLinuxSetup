@@ -20,7 +20,7 @@ Depois do primeiro boot, confira com `lsblk -f`, `findmnt /`, `findmnt /boot` e 
 
 Se a partição EFI estiver montada em `/boot`, kernel, initramfs e eventuais UKIs ficarão fora dos snapshots Btrfs. Uma restauração após atualizar o kernel pode exigir recuperar também os arquivos de boot correspondentes. O archinstall atual pode preservar um initramfs tradicional mesmo com UKI em certas instalações com GRUB e snapshots Btrfs; confira o resultado na versão instalada antes de confiar nas entradas do `grub-btrfs`. Não mova `/boot` para dentro do Btrfs criptografado sem planejar o desbloqueio: GRUB comum não lê LUKS2 com Argon2 nesse layout. [Timeshift: layouts suportados](https://github.com/linuxmint/timeshift#supported-system-configurations), [ArchWiki: `/boot` criptografado](https://wiki.archlinux.org/title/GRUB#Encrypted_/boot).
 
-Antes de executar `archsetup packages`, crie no Timeshift um snapshot manual do sistema limpo. Teste a restauração pela interface no notebook antes de depender dela; iniciar um snapshot pelo GRUB não equivale a restaurá-lo definitivamente. Mantenha backup separado dos arquivos pessoais em `/home`.
+Antes de executar `archsetup pkg`, crie no Timeshift um snapshot manual do sistema limpo. Teste a restauração pela interface no notebook antes de depender dela; iniciar um snapshot pelo GRUB não equivale a restaurá-lo definitivamente. Mantenha backup separado dos arquivos pessoais em `/home`.
 
 ## Pacotes do perfil
 

@@ -1,9 +1,4 @@
-discord
-telegram-desktop
-qbittorrent
 xorg-xinput
 xf86-input-libinput
-inter-font
-ttf-fira-code
 alsa-utils
 xdg-desktop-portal-gtk
