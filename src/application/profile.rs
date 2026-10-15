@@ -1,6 +1,6 @@
 use crate::application::package_state::valid_package_name;
 use crate::application::pkg::Category;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct Profile {
@@ -25,8 +25,15 @@ impl Profile {
     }
 
     pub fn packages(&self, kind: &str, category: Category) -> &[String] {
-        let packages = if kind == "official" { &self.official } else { &self.aur };
-        packages.get(category.name()).map(Vec::as_slice).unwrap_or(&[])
+        let packages = if kind == "official" {
+            &self.official
+        } else {
+            &self.aur
+        };
+        packages
+            .get(category.name())
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 }
 
@@ -35,30 +42,51 @@ impl Profile {
 pub fn parse(name: &str, content: &str) -> Result<Profile, String> {
     let mut profile = Profile::default();
     let mut section = "";
+    let mut seen = HashSet::new();
+    let mut sections = HashSet::new();
     for (index, raw) in content.lines().enumerate() {
-        let line = raw.split('#').next().unwrap_or("").trim();
-        if line.is_empty() { continue; }
+        let line = strip_comment(raw).trim();
+        if line.is_empty() {
+            continue;
+        }
         if line.starts_with('[') && line.ends_with(']') {
             section = &line[1..line.len() - 1];
             if !matches!(section, "packages.official" | "packages.aur" | "desktop") {
                 return Err(format!("Seção desconhecida no perfil {name}: {section}"));
             }
+            if !sections.insert(section.to_owned()) {
+                return Err(format!("Seção repetida no perfil {name}: {section}"));
+            }
             continue;
         }
-        let (key, value) = line.split_once('=').ok_or_else(|| format!("Linha inválida no perfil {name}: {}", index + 1))?;
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| format!("Linha inválida no perfil {name}: {}", index + 1))?;
         let key = key.trim();
         let value = value.trim();
+        if !seen.insert((section.to_owned(), key.to_owned())) {
+            return Err(format!("Campo repetido no perfil {name}: {section}.{key}"));
+        }
         match (section, key) {
             ("", "name") => profile.name = quoted(value)?.to_owned(),
             ("", "description") => profile.description = quoted(value)?.to_owned(),
             ("", "match_vendor") => profile.match_vendor = Some(quoted(value)?.to_owned()),
             ("", "match_dmi") => profile.match_dmi = Some(quoted(value)?.to_owned()),
-            ("desktop", "touchpad_tapping") => profile.touchpad_tapping = match value {
-                "true" => true, "false" => false,
-                _ => return Err(format!("Booleano inválido no perfil {name}: {key}")),
-            },
-            ("packages.official" | "packages.aur", category) if Category::parse(category).is_some() => {
-                let target = if section == "packages.official" { &mut profile.official } else { &mut profile.aur };
+            ("desktop", "touchpad_tapping") => {
+                profile.touchpad_tapping = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err(format!("Booleano inválido no perfil {name}: {key}")),
+                }
+            }
+            ("packages.official" | "packages.aur", category)
+                if Category::parse(category).is_some() =>
+            {
+                let target = if section == "packages.official" {
+                    &mut profile.official
+                } else {
+                    &mut profile.aur
+                };
                 if target.insert(category.to_owned(), package_array(value)?).is_some() {
                     return Err(format!("Categoria repetida no perfil {name}: {category}"));
                 }
@@ -66,18 +94,31 @@ pub fn parse(name: &str, content: &str) -> Result<Profile, String> {
             _ => return Err(format!("Campo desconhecido no perfil {name}: {section}.{key}")),
         }
     }
-    if profile.name != name || profile.description.is_empty() {
+    if profile.name != name || profile.description.trim().is_empty() {
         return Err(format!("Nome ou descrição inválidos no perfil {name}"));
     }
     if name == "generic" {
         if profile.match_vendor.is_some() || profile.match_dmi.is_some() || profile.touchpad_tapping {
             return Err("generic não pode exigir hardware nem aplicar ajuste específico".to_owned());
         }
-    } else if profile.match_vendor.as_deref().is_none_or(str::is_empty)
-        || profile.match_dmi.as_deref().is_none_or(str::is_empty) {
+    } else if profile.match_vendor.as_deref().is_none_or(|value| value.trim().is_empty())
+        || profile.match_dmi.as_deref().is_none_or(|value| value.trim().is_empty())
+    {
         return Err(format!("Perfil {name} precisa de match_vendor e match_dmi"));
     }
     Ok(profile)
+}
+
+fn strip_comment(line: &str) -> &str {
+    let mut quoted = false;
+    for (index, character) in line.char_indices() {
+        if character == '"' {
+            quoted = !quoted;
+        } else if character == '#' && !quoted {
+            return &line[..index];
+        }
+    }
+    line
 }
 
 fn quoted(value: &str) -> Result<&str, String> {
@@ -105,7 +146,7 @@ mod tests {
     fn parses_profile_and_matches_base_model() {
         let profile = parse("acer", "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"Acer\"\nmatch_dmi = \"VX5-591G\"\n[packages.official]\ngaming = [\"lib32-mesa\"]\n[desktop]\ntouchpad_tapping = true\n").unwrap();
         assert!(profile.matches("Acer Inc.", "Aspire VX5-591G"));
-        assert_eq!(profile.packages("official", Category::Gaming), ["lib32-mesa"]);
+        assert_eq!(profile.packages("official", Category::Gaming), &["lib32-mesa".to_owned()]);
         assert!(profile.touchpad_tapping);
         assert!(!profile.matches("Other", "VX5-591G"));
     }
@@ -114,5 +155,7 @@ mod tests {
     fn rejects_unknown_fields_and_unsafe_packages() {
         assert!(parse("generic", "name = \"generic\"\ndescription = \"Base\"\n[desktop]\nrun_shell = \"rm -rf /\"\n").is_err());
         assert!(parse("generic", "name = \"generic\"\ndescription = \"Base\"\n[packages.official]\nbase = [\"bad package\"]\n").is_err());
+        assert!(parse("generic", "name = \"generic\"\nname = \"generic\"\ndescription = \"Base\"\n").is_err());
+        assert_eq!(parse("generic", "name = \"generic\"\ndescription = \"Base #1\" # comentário\n").unwrap().description, "Base #1");
     }
 }

@@ -1,6 +1,8 @@
 use crate::adapters::linux::LinuxInspector;
 use crate::application::doctor;
-use crate::application::pkg::{Category, PackageSource, RustProvider, Selection};
+use crate::application::pkg::{
+    Category, NVIDIA_580XX_CONFLICTS, PackageSource, RustProvider, Selection,
+};
 use crate::system;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -69,6 +71,26 @@ impl LinuxPkg {
             doctor::check_profile(&LinuxInspector, &self.root, profile)
                 .map_err(|error| format!("Aplicação recusada para este perfil: {error}"))?;
         }
+        if selection.aur.iter().any(|name| name == "nvidia-580xx-dkms") {
+            let conflicts = NVIDIA_580XX_CONFLICTS
+                .iter()
+                .copied()
+                .filter(|name| self.installed(name))
+                .collect::<Vec<_>>();
+            if !conflicts.is_empty() {
+                return Err(format!(
+                    "Driver NVIDIA incompatível com a série 580 já instalado: {}. Revise a migração para nvidia-580xx-dkms antes de executar gaming; o ArchSetup não remove drivers automaticamente.",
+                    conflicts.join(", ")
+                ));
+            }
+            if !system::installed("linux")
+                && !system::installed("linux-zen")
+                && !system::installed("linux-lts")
+                && !system::installed("linux-hardened")
+            {
+                return Err("Nenhum kernel Arch conhecido foi encontrado para instalar os headers exigidos pelo driver NVIDIA DKMS.".to_owned());
+            }
+        }
         if selection.includes(Category::Gaming) {
             if !system::command_exists("pacman-conf") {
                 return Err("pacman-conf não encontrado.".to_owned());
@@ -111,6 +133,9 @@ impl LinuxPkg {
 
     fn configure_docker(&self) -> Result<(), String> {
         println!("\n==> Conferindo acesso ao Docker");
+        if success("systemctl", &["is-active", "--quiet", "ufw.service"])? {
+            println!("Aviso: portas publicadas pelo Docker podem contornar regras do UFW. Revise a exposição dos containers.");
+        }
         let user = capture("id", &["-un"])?.trim().to_owned();
         if user.is_empty() {
             return Err("não foi possível identificar o usuário".to_owned());

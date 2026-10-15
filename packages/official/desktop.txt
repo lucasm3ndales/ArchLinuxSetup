@@ -1,4 +1,5 @@
 xorg-xinput
+xorg-xauth
 xf86-input-libinput
 alsa-utils
 xdg-desktop-portal-gtk

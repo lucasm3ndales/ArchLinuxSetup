@@ -53,6 +53,29 @@ impl LinuxRestore {
         Ok(backups.into_iter().next())
     }
 
+    fn oldest_cursor_backup(&self) -> Result<Option<PathBuf>, String> {
+        let mut backups = Vec::new();
+        for path in directory_entries(&self.backup_base())? {
+            if path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("xfce-"))
+                && is_real_directory(&path)
+                && [
+                    "Xresources.original",
+                    "Xresources.created",
+                    "cursor-index.original",
+                    "cursor-index.created",
+                ]
+                .iter()
+                .any(|name| path.join(name).is_file())
+            {
+                backups.push(path);
+            }
+        }
+        backups.sort();
+        Ok(backups.into_iter().next())
+    }
+
     pub fn installed_packages(&self) -> Result<Vec<String>, String> {
         let manifest = self.manifest();
         require_regular(
@@ -232,6 +255,16 @@ impl LinuxRestore {
                 reject_symlink_or_other(&target)?;
                 reject_symlink_or_other(&source)?;
             }
+            if let Some(cursor_backup) = self.oldest_cursor_backup()? {
+                for (target, name) in [
+                    (self.home.join(".Xresources"), "Xresources"),
+                    (self.home.join(".icons/default/index.theme"), "cursor-index"),
+                ] {
+                    reject_symlink_or_other(&target)?;
+                    reject_symlink_or_other(&cursor_backup.join(format!("{name}.original")))?;
+                    reject_symlink_or_other(&cursor_backup.join(format!("{name}.created")))?;
+                }
+            }
         }
         if self.state_dir.join("browser-before/recorded").is_file() {
             for label in [
@@ -300,6 +333,29 @@ impl LinuxRestore {
                 &keylocks,
                 restore_backup,
             )?;
+        }
+        if let Some(cursor_backup) = self.oldest_cursor_backup()? {
+            for (target, name) in [
+                (self.home.join(".Xresources"), "Xresources"),
+                (self.home.join(".icons/default/index.theme"), "cursor-index"),
+            ] {
+                let original = cursor_backup.join(format!("{name}.original"));
+                let created = cursor_backup.join(format!("{name}.created"));
+                if original.is_file() {
+                    self.restore_user_file(&target, &original, restore_backup)?;
+                } else if created.is_file() && target.is_file() {
+                    let current = fs::read(&target).map_err(|error| error.to_string())?;
+                    let expected = fs::read(&created).map_err(|error| error.to_string())?;
+                    if current == expected {
+                        self.restore_user_file(&target, &original, restore_backup)?;
+                    } else {
+                        println!(
+                            "Cursor: {} foi alterado depois da instalação; arquivo preservado.",
+                            target.display()
+                        );
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -559,6 +615,11 @@ mod tests {
         assert_eq!(
             restore.oldest_xfce_backup().unwrap(),
             Some(backups.join("xfce-001"))
+        );
+        fs::write(backups.join("xfce-002/Xresources.created"), "cursor").unwrap();
+        assert_eq!(
+            restore.oldest_cursor_backup().unwrap(),
+            Some(backups.join("xfce-002"))
         );
 
         let root = temp.join("greeter.conf");

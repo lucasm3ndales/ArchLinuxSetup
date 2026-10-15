@@ -1,4 +1,5 @@
 use crate::application::desktop::{self, XfceFacts};
+use crate::application::profile::{self, Profile};
 use std::path::Path;
 
 /// Only the observations needed by the compatibility check. Other commands can
@@ -10,6 +11,7 @@ pub trait SystemInspector {
     fn command_output(&self, name: &str, args: &[&str]) -> Option<String>;
     fn package_installed(&self, name: &str) -> bool;
     fn env_var(&self, name: &str) -> Option<String>;
+    fn profile_names(&self, root: &Path) -> Result<Vec<String>, String>;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -76,6 +78,29 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
                 report.failure("[FALHA] Perfil incompatível com este equipamento.");
             }
         }
+    } else if let (Some(vendor), Some(product)) = (
+        system.read_text(Path::new("/sys/class/dmi/id/sys_vendor")),
+        system.read_text(Path::new("/sys/class/dmi/id/product_name")),
+    ) {
+        match system.profile_names(root) {
+            Ok(names) => {
+                let mut found = false;
+                for name in names.into_iter().filter(|name| name != "generic") {
+                    if let Ok(candidate) = read_profile(system, root, &name) {
+                        if candidate.matches(vendor.trim(), product.trim()) {
+                            report.info(format!("[INFO] Perfil compatível: {name}. Use --profile {name}."));
+                            found = true;
+                        }
+                    }
+                }
+                if !found {
+                    report.info("[INFO] Nenhum perfil específico encontrado. Use --profile generic para declarar essa escolha.");
+                }
+            }
+            Err(error) => report.info(format!("[AVISO] Perfis não verificados: {error}")),
+        }
+    } else {
+        report.info("[INFO] DMI indisponível; use --profile generic se não houver perfil específico.");
     }
 
     if system.command_exists("sudo") {
@@ -99,36 +124,37 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
     if system.command_exists("findmnt") {
         let root_fs = mount_value(system, "/", "FSTYPE");
         let root_options = mount_value(system, "/", "OPTIONS");
-        if root_fs.as_deref() == Some("btrfs")
-            && root_options
+        if root_fs.as_deref() == Some("btrfs") {
+            report.info("[OK] Raiz usa Btrfs");
+            if root_options
                 .as_deref()
                 .is_some_and(|options| has_subvolume(options, "@"))
-        {
-            report.info("[OK] Raiz Btrfs montada no subvolume @");
+            {
+                report.info("[INFO] Subvolume raiz: @; confirme o método de restauração no layout atual.");
+            }
         } else {
-            report.info(
-                "[AVISO] Raiz não foi identificada como Btrfs @; confira o layout do Timeshift.",
-            );
+            report.info("[AVISO] Raiz não foi identificada como Btrfs; Snapper Btrfs não foi validado.");
         }
         let home_fs = mount_value(system, "/home", "FSTYPE");
         let home_options = mount_value(system, "/home", "OPTIONS");
-        if home_fs.as_deref() == Some("btrfs")
-            && home_options
+        if home_fs.as_deref() == Some("btrfs") {
+            if home_options
                 .as_deref()
                 .is_some_and(|options| has_subvolume(options, "@home"))
-        {
-            report.info("[OK] /home Btrfs montado no subvolume @home");
-        } else {
-            report.info("[AVISO] /home não foi identificado como Btrfs @home.");
+            {
+                report.info("[INFO] /home usa subvolume Btrfs @home, fora dos snapshots da raiz.");
+            } else {
+                report.info("[INFO] /home é um ponto de montagem Btrfs separado; confira sua configuração no Snapper.");
+            }
         }
         let boot_fs = mount_value(system, "/boot", "FSTYPE");
         let efi_fs = mount_value(system, "/boot/efi", "FSTYPE")
             .or_else(|| mount_value(system, "/efi", "FSTYPE"));
         if let Some(boot_fs) = boot_fs {
-            report.info(format!("[AVISO] /boot é uma partição separada ({boot_fs}); snapshots Btrfs de @ não incluem seu conteúdo."));
+            report.info(format!("[AVISO] /boot é uma partição separada ({boot_fs}); snapshots Btrfs da raiz não incluem kernels ou UKIs nela."));
         } else if let Some(efi_fs) = efi_fs {
             report.info(format!(
-                "[OK] /boot faz parte da raiz; partição EFI montada separadamente ({efi_fs})"
+                "[AVISO] Partição EFI separada ({efi_fs}); snapshots da raiz não incluem UKIs armazenados nela."
             ));
         } else {
             report.info("[AVISO] Partição EFI não identificada em /boot/efi ou /efi.");
@@ -138,18 +164,26 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
     }
 
     if system.command_exists("pacman") {
-        if system.package_installed("timeshift") {
-            report.info("[OK] Timeshift instalado");
+        if system.package_installed("snapper") {
+            report.info("[OK] Snapper instalado; confirme as configurações e crie um snapshot de teste.");
         } else {
-            report.info("[AVISO] Timeshift não instalado; selecione-o no archinstall ou instale-o antes de criar snapshots.");
+            report.info("[AVISO] Snapper não instalado; snapshots da raiz não foram confirmados.");
         }
-        if system.package_installed("grub") {
-            report.info("[OK] GRUB instalado; confirme que é o gerenciador ativo antes de confiar no restore.");
+        if system.command_exists("bootctl") {
+            report.info("[INFO] Confira o bootloader ativo com bootctl status; systemd-boot não cria entradas para snapshots do Snapper por conta própria.");
         } else {
-            report.info("[AVISO] GRUB não instalado; o Timeshift documenta suporte a GRUB2 para restauração.");
+            report.info("[AVISO] bootctl indisponível; confirme o bootloader e o caminho de recuperação separadamente.");
         }
-        if system.package_installed("grub-btrfs") {
-            report.info("[INFO] grub-btrfs instalado; teste as entradas de snapshots antes de depender delas.");
+        if system.package_installed("snapper")
+            && system
+                .read_text(Path::new("/proc/cmdline"))
+                .is_some_and(|cmdline| {
+                    cmdline
+                        .split_whitespace()
+                        .any(|arg| arg.starts_with("rootflags=subvol="))
+                })
+        {
+            report.info("[AVISO] O boot fixa o subvolume raiz com rootflags=subvol=; snapper rollback sozinho pode não mudar a raiz iniciada.");
         }
     }
 
@@ -183,12 +217,8 @@ fn mount_value(system: &impl SystemInspector, mountpoint: &str, field: &str) -> 
 }
 
 pub fn check_profile(system: &impl SystemInspector, root: &Path, name: &str) -> Result<(), String> {
-    let file = root.join("profiles").join(name).join("dmi-match.conf");
-    let config = system
-        .read_text(&file)
-        .ok_or_else(|| format!("perfil sem validação de hardware: {name}"))?;
-    let (expected_vendor, expected_product) = parse_dmi_match(&config)
-        .ok_or_else(|| format!("critérios DMI inválidos no perfil {name}"))?;
+    let profile = read_profile(system, root, name)?;
+    if name == "generic" { return Ok(()); }
     let vendor = system
         .read_text(Path::new("/sys/class/dmi/id/sys_vendor"))
         .map(|value| value.trim().to_owned())
@@ -197,15 +227,20 @@ pub fn check_profile(system: &impl SystemInspector, root: &Path, name: &str) -> 
         .read_text(Path::new("/sys/class/dmi/id/product_name"))
         .map(|value| value.trim().to_owned())
         .ok_or_else(|| "não foi possível ler o modelo desta máquina".to_owned())?;
-    if vendor.to_ascii_lowercase().contains(&expected_vendor)
-        && product.to_ascii_lowercase().contains(&expected_product)
-    {
+    if profile.matches(&vendor, &product) {
         Ok(())
     } else {
         Err(format!(
-            "o perfil {name} exige {expected_vendor} / {expected_product}; esta máquina informa {vendor} / {product}"
+            "o perfil {name} exige {} / {}; esta máquina informa {vendor} / {product}",
+            profile.match_vendor.as_deref().unwrap_or("?"), profile.match_dmi.as_deref().unwrap_or("?")
         ))
     }
+}
+
+pub fn read_profile(system: &impl SystemInspector, root: &Path, name: &str) -> Result<Profile, String> {
+    let file = root.join("profiles").join(name).join("profile.toml");
+    let content = system.read_text(&file).ok_or_else(|| format!("perfil sem profile.toml: {name}"))?;
+    profile::parse(name, &content)
 }
 
 fn parse_os_id(content: &str) -> Option<String> {
@@ -221,27 +256,6 @@ fn has_subvolume(options: &str, name: &str) -> bool {
         .any(|option| option == format!("subvol=/{name}") || option == format!("subvol={name}"))
 }
 
-fn parse_dmi_match(content: &str) -> Option<(String, String)> {
-    let mut vendor = None;
-    let mut product = None;
-    for line in content.lines() {
-        let (key, value) = line.split_once('=')?;
-        if value.is_empty()
-            || !value
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        {
-            return None;
-        }
-        match key {
-            "vendor" if vendor.is_none() => vendor = Some(value.to_owned()),
-            "product" if product.is_none() => product = Some(value.to_owned()),
-            _ => return None,
-        }
-    }
-    Some((vendor?, product?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,6 +269,7 @@ mod tests {
         outputs: HashMap<String, String>,
         packages: HashSet<String>,
         environment: HashMap<String, String>,
+        profiles: Vec<String>,
     }
 
     impl SystemInspector for FakeInspector {
@@ -278,6 +293,9 @@ mod tests {
         fn env_var(&self, name: &str) -> Option<String> {
             self.environment.get(name).cloned()
         }
+        fn profile_names(&self, _: &Path) -> Result<Vec<String>, String> {
+            Ok(self.profiles.clone())
+        }
     }
 
     #[test]
@@ -300,17 +318,22 @@ mod tests {
             fake.outputs
                 .insert(format!("findmnt -rnM {mount} -o {field}"), value.into());
         }
-        fake.packages
-            .extend(["timeshift", "grub"].map(str::to_owned));
+        fake.packages.insert("snapper".into());
+        fake.commands.insert("bootctl".into());
+        fake.files.insert(
+            "/proc/cmdline".into(),
+            "root=UUID=example rootflags=subvol=@ rw".into(),
+        );
         let report = inspect(&fake, Path::new("/project"), None);
         assert!(!report.failed);
         assert!(report.ordinary_user);
         assert!(report.messages.contains(&Message::Info(
-            "[OK] Raiz Btrfs montada no subvolume @".into()
+            "[OK] Raiz usa Btrfs".into()
         )));
         assert!(report.messages.contains(&Message::Info(
             "[OK] [multilib] habilitado para gaming".into()
         )));
+        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("snapper rollback sozinho"))));
     }
 
     #[test]
@@ -342,8 +365,8 @@ mod tests {
         fake.files
             .insert("/etc/os-release".into(), "ID=arch\n".into());
         fake.files.insert(
-            "/project/profiles/acer/dmi-match.conf".into(),
-            "vendor=acer\nproduct=vx5-591g\n".into(),
+            "/project/profiles/acer/profile.toml".into(),
+            "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"acer\"\nmatch_dmi = \"vx5-591g\"\n".into(),
         );
         fake.files
             .insert("/sys/class/dmi/id/sys_vendor".into(), "Other\n".into());
@@ -357,6 +380,30 @@ mod tests {
     }
 
     #[test]
+    fn suggests_matching_profile_without_selecting_it() {
+        let mut fake = FakeInspector::default();
+        fake.uid = 1000;
+        fake.files.insert("/etc/os-release".into(), "ID=arch\n".into());
+        fake.files.insert("/sys/class/dmi/id/sys_vendor".into(), "Acer Inc.\n".into());
+        fake.files.insert("/sys/class/dmi/id/product_name".into(), "Aspire VX5-591G\n".into());
+        fake.files.insert(
+            "/project/profiles/acer/profile.toml".into(),
+            "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"Acer\"\nmatch_dmi = \"VX5-591G\"\n".into(),
+        );
+        fake.profiles = vec!["acer".into(), "generic".into()];
+        let report = inspect(&fake, Path::new("/project"), None);
+        assert!(!report.failed);
+        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("Use --profile acer"))));
+    }
+
+    #[test]
+    fn accepts_generic_profile_without_dmi() {
+        let mut fake = FakeInspector::default();
+        fake.files.insert("/project/profiles/generic/profile.toml".into(), "name = \"generic\"\ndescription = \"Sem extras\"\n".into());
+        assert!(check_profile(&fake, Path::new("/project"), "generic").is_ok());
+    }
+
+    #[test]
     fn parses_system_facts() {
         assert_eq!(
             parse_os_id("NAME=Arch Linux\nID=arch\n"),
@@ -364,10 +411,5 @@ mod tests {
         );
         assert!(has_subvolume("rw,ssd,subvol=/@,compress=zstd:3", "@"));
         assert!(!has_subvolume("rw,ssd,subvol=/@home", "@"));
-        assert_eq!(
-            parse_dmi_match("vendor=acer\nproduct=vx5-591g\n"),
-            Some(("acer".to_owned(), "vx5-591g".to_owned()))
-        );
-        assert!(parse_dmi_match("vendor=acer\nproduct=VX5\n").is_none());
     }
 }

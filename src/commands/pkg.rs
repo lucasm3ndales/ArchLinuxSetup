@@ -1,7 +1,9 @@
 use super::aur;
 use crate::adapters::package_state::PackageTracker;
 use crate::adapters::pkg::LinuxPkg;
-use crate::application::pkg::{self, Category, PackageSource, RustProvider, Selection};
+use crate::application::pkg::{
+    self, Category, NVIDIA_580XX_CONFLICTS, PackageSource, RustProvider, Selection,
+};
 use crate::project;
 use std::ffi::OsString;
 use std::io::{self, IsTerminal, Write};
@@ -102,6 +104,9 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
             println!(
                 "\nDocker: adicionar o usuário atual ao grupo docker, se necessário, e habilitar/iniciar docker.service."
             );
+            if linux.installed("ufw") {
+                println!("Aviso: portas publicadas pelo Docker podem contornar regras do UFW.");
+            }
         }
         if selection.includes(Category::Gaming) {
             println!(
@@ -211,6 +216,16 @@ fn show_selection(source: &impl PackageSource, selection: &Selection, options: &
         println!(
             "\nRust: rust já está instalado; rustup foi retirado da seleção para evitar conflito."
         );
+    }
+    if selection.aur.iter().any(|name| name == "nvidia-580xx-dkms") {
+        let conflicts = NVIDIA_580XX_CONFLICTS
+            .iter()
+            .copied()
+            .filter(|name| source.installed(name))
+            .collect::<Vec<_>>();
+        if !conflicts.is_empty() {
+            println!("\n[AVISO] NVIDIA 580xx conflita com: {}. A aplicação será recusada até revisar esses pacotes.", conflicts.join(", "));
+        }
     }
 }
 

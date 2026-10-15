@@ -1,4 +1,0 @@
-linux-headers
-linux-zen-headers
-cryptsetup
-e2fsprogs

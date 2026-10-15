@@ -1,0 +1,14 @@
+name = "acer-aspire-vx5-591g"
+description = "Acer Aspire VX5-591G (variantes regionais)"
+match_vendor = "Acer"
+match_dmi = "VX5-591G"
+
+[packages.official]
+desktop = ["blueman"]
+gaming = ["lib32-mesa", "lib32-vulkan-intel"]
+
+[packages.aur]
+gaming = ["nvidia-580xx-dkms", "nvidia-580xx-utils", "lib32-nvidia-580xx-utils"]
+
+[desktop]
+touchpad_tapping = true

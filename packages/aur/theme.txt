@@ -1,6 +1,3 @@
-nordic-theme
-nordic-darker-theme
-nordic-bluish-accent-theme
-nordic-polar-theme
-nordzy-icon-theme
-nordzy-cursors
+arc-gtk-theme
+arc-icon-theme
+xcursor-hackneyed-light

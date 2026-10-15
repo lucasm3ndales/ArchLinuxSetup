@@ -5,9 +5,9 @@ pub const REQUIRED_PACKAGES: &[&str] = &[
     "inter-font",
     "ttf-fira-code",
     "ksuperkey",
-    "nordic-theme",
-    "nordzy-icon-theme",
-    "nordzy-cursors",
+    "arc-gtk-theme",
+    "arc-icon-theme",
+    "xcursor-hackneyed-light",
     "xfce4-kbdleds-plugin",
 ];
 
@@ -188,9 +188,9 @@ pub fn plan_panels(
 }
 
 const GREETER_SETTINGS: &[(&str, &str)] = &[
-    ("theme-name", "Nordic"),
-    ("icon-theme-name", "Nordzy-dark"),
-    ("cursor-theme-name", "Nordzy-cursors"),
+    ("theme-name", "Arc-Dark"),
+    ("icon-theme-name", "Arc"),
+    ("cursor-theme-name", "Hackneyed"),
     ("cursor-theme-size", "24"),
     ("font-name", "Inter 10"),
     ("background", "#2e3440"),
@@ -235,6 +235,60 @@ pub fn render_greeter(existing: &str) -> String {
         }
         output.push_str("[Greeter]\n");
         emit_settings(&mut output);
+    }
+    output
+}
+
+pub fn render_xresources(existing: &str) -> String {
+    let mut output = String::new();
+    for line in existing.lines() {
+        if line
+            .trim_start()
+            .split_once(':')
+            .is_some_and(|(key, _)| key.trim() == "Xcursor.theme")
+        {
+            continue;
+        }
+        output.push_str(line);
+        output.push('\n');
+    }
+    output.push_str("Xcursor.theme: Hackneyed\n");
+    output
+}
+
+pub fn render_cursor_index(existing: &str) -> String {
+    let mut output = String::new();
+    let mut in_icon_theme = false;
+    let mut found = false;
+    for line in existing.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            if in_icon_theme {
+                output.push_str("Inherits=Hackneyed\n");
+            }
+            in_icon_theme = trimmed == "[Icon Theme]";
+            found |= in_icon_theme;
+            output.push_str(line);
+            output.push('\n');
+        } else if in_icon_theme
+            && trimmed
+                .split_once('=')
+                .is_some_and(|(key, _)| key.trim() == "Inherits")
+        {
+            continue;
+        } else {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+    if in_icon_theme {
+        output.push_str("Inherits=Hackneyed\n");
+    }
+    if !found {
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str("[Icon Theme]\nInherits=Hackneyed\n");
     }
     output
 }
@@ -337,10 +391,22 @@ mod tests {
         let original =
             "[Other]\nfoo=bar\n[Greeter]\ntheme-name=Old\ncustom=true\n[Seat:*]\nactive=true\n";
         let updated = render_greeter(original);
-        assert_eq!(updated.matches("theme-name=Nordic").count(), 1);
+        assert_eq!(updated.matches("theme-name=Arc-Dark").count(), 1);
         assert!(updated.contains("custom=true\n"));
         assert!(updated.contains("[Seat:*]\nactive=true\n"));
         assert_eq!(render_greeter(&updated), updated);
+    }
+
+    #[test]
+    fn cursor_files_keep_other_settings_and_remain_stable() {
+        let resources = render_xresources("Xft.dpi: 120\nXcursor.theme: Old\n");
+        assert_eq!(resources, "Xft.dpi: 120\nXcursor.theme: Hackneyed\n");
+        assert_eq!(render_xresources(&resources), resources);
+
+        let index = render_cursor_index("[Icon Theme]\nName=Custom\nInherits=Old\n[Other]\nFoo=bar\n");
+        assert_eq!(index, "[Icon Theme]\nName=Custom\nInherits=Hackneyed\n[Other]\nFoo=bar\n");
+        assert_eq!(render_cursor_index(&index), index);
+        assert_eq!(render_cursor_index(""), "[Icon Theme]\nInherits=Hackneyed\n");
     }
 
     #[test]

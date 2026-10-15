@@ -1,4 +1,5 @@
 use crate::application::package_state::valid_package_name;
+use crate::application::profile;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -61,6 +62,17 @@ pub enum RustProvider {
     Rustup,
 }
 
+pub const NVIDIA_580XX_CONFLICTS: &[&str] = &[
+    "nvidia",
+    "nvidia-dkms",
+    "nvidia-lts",
+    "nvidia-open",
+    "nvidia-open-dkms",
+    "nvidia-open-lts",
+    "nvidia-utils",
+    "lib32-nvidia-utils",
+];
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct Selection {
     pub categories: Vec<Category>,
@@ -81,6 +93,15 @@ pub fn select(
     categories: &[Category],
     profile: Option<&str>,
 ) -> Result<Selection, String> {
+    let profile_data = profile
+        .map(|name| {
+            let path = root.join("profiles").join(name).join("profile.toml");
+            let content = source
+                .read_manifest(&path)?
+                .ok_or_else(|| format!("Perfil sem profile.toml: {name}"))?;
+            profile::parse(name, &content)
+        })
+        .transpose()?;
     let mut selection = Selection {
         categories: Vec::new(),
         official: Vec::new(),
@@ -108,21 +129,29 @@ pub fn select(
                 &mut seen_official,
                 &mut seen_aur,
             )?;
-            if let Some(profile) = profile {
-                let specific = root
-                    .join("profiles")
-                    .join(profile)
-                    .join("packages")
-                    .join(kind)
-                    .join(format!("{}.txt", category.name()));
-                add_manifest(
-                    source,
-                    &specific,
+            if let Some(profile_data) = &profile_data {
+                add_packages(
+                    profile_data.packages(kind, *category),
                     kind,
                     &mut selection,
                     &mut seen_official,
                     &mut seen_aur,
-                )?;
+                );
+            }
+        }
+        if source.pacman_available()
+            && *category == Category::Gaming
+            && selection.aur.iter().any(|name| name == "nvidia-580xx-dkms")
+        {
+            for (kernel, headers) in [
+                ("linux", "linux-headers"),
+                ("linux-lts", "linux-lts-headers"),
+                ("linux-zen", "linux-zen-headers"),
+                ("linux-hardened", "linux-hardened-headers"),
+            ] {
+                if source.installed(kernel) && seen_official.insert(headers.to_owned()) {
+                    selection.official.push(headers.to_owned());
+                }
             }
         }
     }
@@ -159,6 +188,7 @@ fn add_manifest(
     let Some(content) = source.read_manifest(path)? else {
         return Ok(());
     };
+    let mut packages = Vec::new();
     for package in content.lines() {
         if package.is_empty() || package.starts_with('#') {
             continue;
@@ -166,15 +196,28 @@ fn add_manifest(
         if !valid_package_name(package) {
             return Err(format!("Pacote inválido em {}: {package}", path.display()));
         }
+        packages.push(package.to_owned());
+    }
+    add_packages(&packages, kind, selection, official, aur);
+    Ok(())
+}
+
+fn add_packages(
+    packages: &[String],
+    kind: &str,
+    selection: &mut Selection,
+    official: &mut HashSet<String>,
+    aur: &mut HashSet<String>,
+) {
+    for package in packages {
         if kind == "official" {
-            if official.insert(package.to_owned()) {
-                selection.official.push(package.to_owned());
+            if official.insert(package.clone()) {
+                selection.official.push(package.clone());
             }
-        } else if aur.insert(package.to_owned()) {
-            selection.aur.push(package.to_owned());
+        } else if aur.insert(package.clone()) {
+            selection.aur.push(package.clone());
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -214,8 +257,8 @@ mod tests {
             ),
             (root.join("packages/aur/apps.txt"), "brave-bin\n".to_owned()),
             (
-                root.join("profiles/acer/packages/official/base.txt"),
-                "linux-headers\n".to_owned(),
+                root.join("profiles/acer/profile.toml"),
+                "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"Acer\"\nmatch_dmi = \"VX5\"\n[packages.official]\nbase = [\"linux-headers\"]\n".to_owned(),
             ),
         ]);
         let source = FakeSource {
@@ -233,6 +276,50 @@ mod tests {
         assert_eq!(result.categories, vec![Category::Base, Category::Apps]);
         assert_eq!(result.official, vec!["git", "linux-headers", "discord"]);
         assert_eq!(result.aur, vec!["brave-bin"]);
+    }
+
+    #[test]
+    fn base_does_not_install_headers_without_dkms() {
+        let source = FakeSource {
+            files: HashMap::new(),
+            installed: HashSet::from(["linux-zen".to_owned(), "linux-lts".to_owned()]),
+            pacman: true,
+        };
+        let result = select(&source, Path::new("/repo"), &[Category::Base], None).unwrap();
+        assert!(result.official.is_empty());
+    }
+
+    #[test]
+    fn nvidia_dkms_selects_headers_even_when_only_gaming_is_requested() {
+        let root = Path::new("/repo");
+        let source = FakeSource {
+            files: HashMap::from([(
+                root.join("profiles/acer/profile.toml"),
+                "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"Acer\"\nmatch_dmi = \"VX5\"\n[packages.aur]\ngaming = [\"nvidia-580xx-dkms\"]\n".to_owned(),
+            )]),
+            installed: HashSet::from(["linux".to_owned(), "linux-zen".to_owned()]),
+            pacman: true,
+        };
+        let result = select(&source, root, &[Category::Gaming], Some("acer")).unwrap();
+        assert_eq!(result.official, vec!["linux-headers", "linux-zen-headers"]);
+        assert_eq!(result.aur, vec!["nvidia-580xx-dkms"]);
+    }
+
+    #[test]
+    fn generic_profile_adds_no_packages() {
+        let root = Path::new("/repo");
+        let source = FakeSource {
+            files: HashMap::from([
+                (root.join("packages/official/base.txt"), "git\n".to_owned()),
+                (root.join("profiles/generic/profile.toml"), "name = \"generic\"\ndescription = \"Sem extras\"\n".to_owned()),
+            ]),
+            installed: HashSet::new(),
+            pacman: false,
+        };
+        let normal = select(&source, root, &[Category::Base], None).unwrap();
+        let generic = select(&source, root, &[Category::Base], Some("generic")).unwrap();
+        assert_eq!(normal.official, generic.official);
+        assert_eq!(normal.aur, generic.aur);
     }
 
     #[test]
@@ -269,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn repository_default_keeps_package_set_after_category_split() {
+    fn repository_default_uses_current_package_categories() {
         struct RepositorySource;
         impl PackageSource for RepositorySource {
             fn read_manifest(&self, path: &Path) -> Result<Option<String>, String> {
@@ -288,8 +375,10 @@ mod tests {
         }
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let default = select(&RepositorySource, root, &Category::DEFAULT, None).unwrap();
-        assert_eq!(default.official.len(), 31);
-        assert_eq!(default.aur.len(), 11);
+        assert_eq!(default.official.len(), 33);
+        assert_eq!(default.aur.len(), 9);
+        let development = select(&RepositorySource, root, &[Category::Development], None).unwrap();
+        assert_eq!(development.aur, ["visual-studio-code-bin"]);
         let apps = select(&RepositorySource, root, &[Category::Apps], None).unwrap();
         assert_eq!(
             apps.official,
@@ -298,12 +387,16 @@ mod tests {
         assert_eq!(apps.aur, ["brave-bin", "spotify", "chatgpt-desktop"]);
         let theme = select(&RepositorySource, root, &[Category::Theme], None).unwrap();
         assert_eq!(theme.official, ["inter-font", "ttf-fira-code"]);
-        assert_eq!(theme.aur.len(), 6);
+        assert_eq!(
+            theme.aur,
+            ["arc-gtk-theme", "arc-icon-theme", "xcursor-hackneyed-light"]
+        );
         let desktop = select(&RepositorySource, root, &[Category::Desktop], None).unwrap();
         assert_eq!(
             desktop.official,
             [
                 "xorg-xinput",
+                "xorg-xauth",
                 "xf86-input-libinput",
                 "alsa-utils",
                 "xdg-desktop-portal-gtk"

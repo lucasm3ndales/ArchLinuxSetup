@@ -88,17 +88,18 @@ impl LinuxDesktop {
             )?;
             println!("Indicador antigo preservado em {}", target.display());
         }
-        set_property("xsettings", "/Net/ThemeName", "string", "Nordic")?;
-        set_property("xsettings", "/Net/IconThemeName", "string", "Nordzy-dark")?;
+        set_property("xsettings", "/Net/ThemeName", "string", "Arc-Dark")?;
+        set_property("xsettings", "/Net/IconThemeName", "string", "Arc")?;
         set_property(
             "xsettings",
             "/Gtk/CursorThemeName",
             "string",
-            "Nordzy-cursors",
+            "Hackneyed",
         )?;
         set_property("xsettings", "/Gtk/CursorThemeSize", "int", "24")?;
         set_property("xsettings", "/Gtk/FontName", "string", "Inter 10")?;
-        set_property("xfwm4", "/general/theme", "string", "Nordic")?;
+        set_property("xfwm4", "/general/theme", "string", "Arc-Dark")?;
+        self.configure_cursor_files(&backup)?;
         set_property(
             "xfwm4",
             "/general/title_font",
@@ -289,7 +290,52 @@ impl LinuxDesktop {
                 })?;
             }
         }
+        for (source, backup_name) in [
+            (self.home.join(".Xresources"), "Xresources.original"),
+            (self.home.join(".icons/default/index.theme"), "cursor-index.original"),
+        ] {
+            if source.is_file() {
+                fs::copy(&source, backup.join(backup_name)).map_err(|error| {
+                    format!("não foi possível salvar {}: {error}", source.display())
+                })?;
+            }
+        }
         Ok(backup)
+    }
+
+    fn configure_cursor_files(&self, backup: &Path) -> Result<(), String> {
+        for (target, rendered, created_name) in [
+            (
+                self.home.join(".Xresources"),
+                desktop::render_xresources as fn(&str) -> String,
+                "Xresources.created",
+            ),
+            (
+                self.home.join(".icons/default/index.theme"),
+                desktop::render_cursor_index as fn(&str) -> String,
+                "cursor-index.created",
+            ),
+        ] {
+            let existed = target.is_file();
+            let current = if existed {
+                fs::read_to_string(&target)
+                    .map_err(|error| format!("não foi possível ler {}: {error}", target.display()))?
+            } else {
+                String::new()
+            };
+            let updated = rendered(&current);
+            if updated != current {
+                fs::create_dir_all(target.parent().ok_or("caminho de cursor inválido")?)
+                    .map_err(|error| format!("não foi possível criar diretório: {error}"))?;
+                if !existed {
+                    fs::write(backup.join(created_name), &updated)
+                        .map_err(|error| format!("não foi possível registrar {}: {error}", target.display()))?;
+                }
+                fs::write(&target, &updated)
+                    .map_err(|error| format!("não foi possível configurar {}: {error}", target.display()))?;
+            }
+        }
+        Ok(())
     }
 
     fn configure_ksuperkey(&self, backup: &Path) -> Result<(), String> {

@@ -65,6 +65,11 @@ impl LinuxDesktop {
         })
     }
 
+    pub fn uses_lightdm(&self) -> bool {
+        fs::canonicalize("/etc/systemd/system/display-manager.service")
+            .is_ok_and(|path| path.ends_with("lightdm.service"))
+    }
+
     pub fn preflight(&self, profile: Option<&str>) -> Result<(), String> {
         if system::effective_uid()? == 0 {
             return Err("Execute como usuário comum, sem sudo.".to_owned());
@@ -84,7 +89,6 @@ impl LinuxDesktop {
             "xfconf-query",
             "xfce4-panel",
             "pgrep",
-            "lightdm",
             "sha256sum",
             "date",
             "mv",
@@ -105,16 +109,15 @@ impl LinuxDesktop {
                 "xorg-server ausente; configure a sessão X11 do Xfce antes de aplicar.".to_owned(),
             );
         }
-        if !Path::new("/usr/share/xgreeters/lightdm-slick-greeter.desktop").is_file() {
-            return Err(
-                "Slick Greeter ausente; instale e ative o LightDM/Slick antes de aplicar."
-                    .to_owned(),
-            );
-        }
-        let active_dm = fs::canonicalize("/etc/systemd/system/display-manager.service")
-            .map_err(|_| "LightDM não é o gerenciador de login habilitado.".to_owned())?;
-        if !active_dm.ends_with("lightdm.service") {
-            return Err("LightDM não é o gerenciador de login habilitado.".to_owned());
+        if self.uses_lightdm() {
+            if !system::command_exists("lightdm") {
+                return Err("LightDM habilitado, mas o comando lightdm está ausente.".to_owned());
+            }
+            if !Path::new("/usr/share/xgreeters/lightdm-slick-greeter.desktop").is_file() {
+                return Err(
+                    "LightDM habilitado, mas Slick Greeter está ausente.".to_owned(),
+                );
+            }
         }
         for path in [
             "/usr/share/xfce4/panel/plugins/xfce4-verve-plugin.desktop",
@@ -159,12 +162,17 @@ impl LinuxDesktop {
                     .to_owned(),
             );
         }
-        for path in [
-            "/etc/lightdm/slick-greeter.conf",
-            "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
+        let mut root_paths = vec![
             "/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf",
             "/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf",
-        ] {
+        ];
+        if self.uses_lightdm() {
+            root_paths.extend([
+                "/etc/lightdm/slick-greeter.conf",
+                "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
+            ]);
+        }
+        for path in root_paths {
             let path = Path::new(path);
             match fs::symlink_metadata(path) {
                 Ok(metadata) if metadata.file_type().is_symlink() => {
@@ -189,24 +197,44 @@ impl LinuxDesktop {
                 }
             }
         }
-        let autostart = self.config_dir.join("autostart/ksuperkey.desktop");
-        match fs::symlink_metadata(&autostart) {
-            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-                return Err(format!(
-                    "Autostart não é um arquivo comum: {}",
-                    autostart.display()
-                ));
-            }
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(format!(
-                    "não foi possível inspecionar {}: {error}",
-                    autostart.display()
-                ));
+        for directory in [self.home.join(".icons"), self.home.join(".icons/default")] {
+            match fs::symlink_metadata(&directory) {
+                Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
+                    return Err(format!("Diretório de cursores inválido: {}", directory.display()));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(format!("não foi possível inspecionar {}: {error}", directory.display())),
             }
         }
-        if Path::new("/etc/lightdm/slick-greeter.conf").is_file() {
+        for config_file in [
+            self.config_dir.join("autostart/ksuperkey.desktop"),
+            self.home.join(".Xresources"),
+            self.home.join(".icons/default/index.theme"),
+        ] {
+            match fs::symlink_metadata(&config_file) {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                    return Err(format!(
+                        "Configuração não é um arquivo comum: {}",
+                        config_file.display()
+                    ));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(format!(
+                        "não foi possível inspecionar {}: {error}",
+                        config_file.display()
+                    ));
+                }
+            }
+            if config_file.is_file() && config_file != self.config_dir.join("autostart/ksuperkey.desktop") {
+                fs::read_to_string(&config_file).map_err(|error| {
+                    format!("não foi possível ler {}: {error}", config_file.display())
+                })?;
+            }
+        }
+        if self.uses_lightdm() && Path::new("/etc/lightdm/slick-greeter.conf").is_file() {
             fs::read_to_string("/etc/lightdm/slick-greeter.conf").map_err(|_| {
                 "Não é possível ler a configuração existente do Slick Greeter.".to_owned()
             })?;
@@ -227,13 +255,13 @@ impl LinuxDesktop {
                 ));
             }
         }
-        for path in [
-            "/usr/share/themes/Nordic/gtk-3.0",
-            "/usr/share/themes/Nordic/xfwm4",
-            "/usr/share/icons/Nordzy-dark",
-            "/usr/share/icons/Nordzy-cursors/cursors",
+        for (path, directory) in [
+            ("/usr/share/themes/Arc-Dark/gtk-3.0", true),
+            ("/usr/share/themes/Arc-Dark/xfwm4", true),
+            ("/usr/share/icons/Arc/index.theme", false),
+            ("/usr/share/icons/Hackneyed/cursors", true),
         ] {
-            if !Path::new(path).is_dir() {
+            if if directory { !Path::new(path).is_dir() } else { !Path::new(path).is_file() } {
                 return Err(format!(
                     "Tema, ícones ou cursor ausente: {path}. Execute archsetup pkg theme."
                 ));
@@ -250,13 +278,24 @@ impl LinuxDesktop {
     }
 
     pub fn apply(&self, profile: Option<&str>) -> Result<(), String> {
+        let tapping = profile
+            .map(|name| {
+                doctor::read_profile(&LinuxInspector, &self.root, name)
+                    .map(|data| data.touchpad_tapping)
+            })
+            .transpose()?
+            .unwrap_or(false);
         run("sudo", &["-v"])?;
         println!("\n==> Configurando Xfce");
         self.configure_xfce()?;
-        println!("\n==> Configurando tela de login");
-        self.configure_greeter()?;
+        if self.uses_lightdm() {
+            println!("\n==> Configurando tela de login LightDM/Slick");
+            self.configure_greeter()?;
+        } else {
+            println!("\n==> Login: gerenciador atual preservado (sem ajustes de greeter).");
+        }
         println!("\n==> Configurando touchpad");
-        self.configure_touchpad(profile.is_some())?;
+        self.configure_touchpad(tapping)?;
         println!("\nConcluído: desktop configurado.");
         Ok(())
     }

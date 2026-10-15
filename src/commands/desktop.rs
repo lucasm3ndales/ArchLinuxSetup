@@ -1,5 +1,7 @@
 use super::pkg;
 use crate::adapters::desktop::LinuxDesktop;
+use crate::adapters::linux::LinuxInspector;
+use crate::application::doctor;
 use crate::project;
 use std::ffi::OsString;
 use std::io::{self, IsTerminal, Write};
@@ -38,8 +40,8 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 
 pub fn help() -> i32 {
     println!("Uso: archsetup desktop [--profile NOME] [--dry-run]\n");
-    println!("Configura o desktop (atualmente só Xfce), LightDM/Slick Greeter e touchpad X11.");
-    println!("Xfce, LightDM e Slick Greeter devem estar instalados antes da execução.");
+    println!("Configura Xfce e touchpad X11; aplica o tema ao Slick Greeter quando LightDM está habilitado.");
+    println!("Ly e outros gerenciadores de login são preservados.");
     println!("Execute como usuário comum em uma sessão X11 do Xfce.");
     println!("O perfil opcional aplica somente ajustes de hardware compatíveis.");
     0
@@ -54,12 +56,16 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
             return 2;
         }
     };
-    if let Some(profile) = &options.profile {
+    let profile_data = if let Some(profile) = &options.profile {
         if !root.join("profiles").join(profile).is_dir() {
             eprintln!("Erro: Perfil inexistente ou inválido: {profile}");
             return 1;
         }
-    }
+        match doctor::read_profile(&LinuxInspector, root, profile) {
+            Ok(data) => Some(data),
+            Err(error) => { eprintln!("Erro: {error}"); return 1; }
+        }
+    } else { None };
     let linux = match LinuxDesktop::new(root) {
         Ok(linux) => linux,
         Err(error) => {
@@ -81,10 +87,17 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     );
     println!("Perfil: {}", options.profile.as_deref().unwrap_or("nenhum"));
     println!(
-        "  Xfce: tema Nordic, fontes, painel superior, busca, teclas Lock, espaços de trabalho e tecla Super."
+        "  Xfce: Arc-Dark, ícones Arc, cursor Hackneyed, fontes, painel, busca, teclas Lock, espaços de trabalho e tecla Super."
     );
-    println!("  Login: tema Nordic no LightDM com Slick Greeter.");
-    println!("  Touchpad X11: rolagem natural; o perfil Acer também ativa toque para clicar.");
+    if linux.uses_lightdm() {
+        println!("  Login: Arc-Dark, Arc e Hackneyed no LightDM com Slick Greeter.");
+    } else {
+        println!("  Login: gerenciador atual preservado; tema do greeter não será alterado.");
+    }
+    println!("  Touchpad X11: rolagem natural.");
+    if profile_data.as_ref().is_some_and(|data| data.touchpad_tapping) {
+        println!("  Touchpad X11: toque para clicar ativado por este perfil.");
+    }
     if options.dry_run {
         match linux.missing_packages() {
             Some(missing) if !missing.is_empty() => {
