@@ -5,8 +5,8 @@ pub const REQUIRED_PACKAGES: &[&str] = &[
     "inter-font",
     "ttf-fira-code",
     "ksuperkey",
-    "arc-gtk-theme",
-    "arc-icon-theme",
+    "nordic-theme",
+    "zafiro-icon-theme",
     "xcursor-hackneyed-light",
     "xfce4-kbdleds-plugin",
 ];
@@ -188,8 +188,8 @@ pub fn plan_panels(
 }
 
 const GREETER_SETTINGS: &[(&str, &str)] = &[
-    ("theme-name", "Arc-Dark"),
-    ("icon-theme-name", "Arc"),
+    ("theme-name", "Nordic"),
+    ("icon-theme-name", "zafiro-dark"),
     ("cursor-theme-name", "Hackneyed"),
     ("cursor-theme-size", "24"),
     ("font-name", "Inter 10"),
@@ -198,6 +198,37 @@ const GREETER_SETTINGS: &[(&str, &str)] = &[
     ("draw-user-backgrounds", "false"),
     ("logo", "/usr/share/pixmaps/archlinux-logo.svg"),
 ];
+
+const LY_SETTINGS: &[(&str, &str)] = &[
+    ("animation", "matrix"),
+    ("clock", "%d/%m/%Y %H:%M"),
+];
+
+pub fn render_ly(existing: &str) -> String {
+    let mut output = String::new();
+    let mut seen = Vec::new();
+    for line in existing.lines() {
+        let setting = line
+            .trim_start()
+            .split_once('=')
+            .map(|(key, _)| key.trim());
+        if let Some((key, value)) = LY_SETTINGS.iter().find(|(key, _)| Some(*key) == setting) {
+            if !seen.contains(key) {
+                output.push_str(&format!("{key} = {value}\n"));
+                seen.push(*key);
+            }
+        } else {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+    for (key, value) in LY_SETTINGS {
+        if !seen.contains(key) {
+            output.push_str(&format!("{key} = {value}\n"));
+        }
+    }
+    output
+}
 
 pub fn render_greeter(existing: &str) -> String {
     let mut output = String::new();
@@ -391,10 +422,21 @@ mod tests {
         let original =
             "[Other]\nfoo=bar\n[Greeter]\ntheme-name=Old\ncustom=true\n[Seat:*]\nactive=true\n";
         let updated = render_greeter(original);
-        assert_eq!(updated.matches("theme-name=Arc-Dark").count(), 1);
+        assert_eq!(updated.matches("theme-name=Nordic").count(), 1);
         assert!(updated.contains("custom=true\n"));
         assert!(updated.contains("[Seat:*]\nactive=true\n"));
         assert_eq!(render_greeter(&updated), updated);
+    }
+
+    #[test]
+    fn renders_ly_settings_without_changing_other_options() {
+        let original = "# animation = none\nanimation = none\nclock = null\nfont = foo\n";
+        let updated = render_ly(original);
+        assert!(updated.contains("# animation = none\n"));
+        assert!(updated.contains("animation = matrix\n"));
+        assert!(updated.contains("clock = %d/%m/%Y %H:%M\n"));
+        assert!(updated.contains("font = foo\n"));
+        assert_eq!(render_ly(&updated), updated);
     }
 
     #[test]

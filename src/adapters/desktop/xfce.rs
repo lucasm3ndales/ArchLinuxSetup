@@ -88,8 +88,8 @@ impl LinuxDesktop {
             )?;
             println!("Indicador antigo preservado em {}", target.display());
         }
-        set_property("xsettings", "/Net/ThemeName", "string", "Arc-Dark")?;
-        set_property("xsettings", "/Net/IconThemeName", "string", "Arc")?;
+        set_property("xsettings", "/Net/ThemeName", "string", "Nordic")?;
+        set_property("xsettings", "/Net/IconThemeName", "string", "zafiro-dark")?;
         set_property(
             "xsettings",
             "/Gtk/CursorThemeName",
@@ -98,7 +98,7 @@ impl LinuxDesktop {
         )?;
         set_property("xsettings", "/Gtk/CursorThemeSize", "int", "24")?;
         set_property("xsettings", "/Gtk/FontName", "string", "Inter 10")?;
-        set_property("xfwm4", "/general/theme", "string", "Arc-Dark")?;
+        set_property("xfwm4", "/general/theme", "string", "Nordic")?;
         self.configure_cursor_files(&backup)?;
         set_property(
             "xfwm4",

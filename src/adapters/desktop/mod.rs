@@ -70,6 +70,16 @@ impl LinuxDesktop {
             .is_ok_and(|path| path.ends_with("lightdm.service"))
     }
 
+    pub fn uses_ly(&self) -> bool {
+        success("systemctl", &["is-enabled", "--quiet", "ly.service"]).unwrap_or(false)
+            || (1..=6).any(|tty| {
+                ["ly", "ly-kmsconvt"].iter().any(|name| {
+                    let service = format!("{name}@tty{tty}.service");
+                    success("systemctl", &["is-enabled", "--quiet", &service]).unwrap_or(false)
+                })
+            })
+    }
+
     pub fn preflight(&self, profile: Option<&str>) -> Result<(), String> {
         if system::effective_uid()? == 0 {
             return Err("Execute como usuário comum, sem sudo.".to_owned());
@@ -117,6 +127,13 @@ impl LinuxDesktop {
                 return Err(
                     "LightDM habilitado, mas Slick Greeter está ausente.".to_owned(),
                 );
+            }
+        } else if self.uses_ly() {
+            if !system::command_exists("ly-dm") {
+                return Err("Ly habilitado, mas ly-dm não foi encontrado.".to_owned());
+            }
+            if !Path::new("/etc/ly/config.ini").is_file() {
+                return Err("Ly habilitado, mas /etc/ly/config.ini está ausente.".to_owned());
             }
         }
         for path in [
@@ -171,6 +188,8 @@ impl LinuxDesktop {
                 "/etc/lightdm/slick-greeter.conf",
                 "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
             ]);
+        } else if self.uses_ly() {
+            root_paths.push("/etc/ly/config.ini");
         }
         for path in root_paths {
             let path = Path::new(path);
@@ -248,6 +267,9 @@ impl LinuxDesktop {
             fs::read_to_string("/etc/lightdm/slick-greeter.conf").map_err(|_| {
                 "Não é possível ler a configuração existente do Slick Greeter.".to_owned()
             })?;
+        } else if self.uses_ly() {
+            fs::read_to_string("/etc/ly/config.ini")
+                .map_err(|_| "Não é possível ler a configuração existente do Ly.".to_owned())?;
         }
         self.panel_plan()?;
         Ok(())
@@ -266,9 +288,9 @@ impl LinuxDesktop {
             }
         }
         for (path, directory) in [
-            ("/usr/share/themes/Arc-Dark/gtk-3.0", true),
-            ("/usr/share/themes/Arc-Dark/xfwm4", true),
-            ("/usr/share/icons/Arc/index.theme", false),
+            ("/usr/share/themes/Nordic/gtk-3.0", true),
+            ("/usr/share/themes/Nordic/xfwm4", true),
+            ("/usr/share/icons/zafiro-dark/index.theme", false),
             ("/usr/share/icons/Hackneyed/cursors", true),
         ] {
             let present = if directory {
@@ -306,6 +328,9 @@ impl LinuxDesktop {
         if self.uses_lightdm() {
             println!("\n==> Configurando tela de login LightDM/Slick");
             self.configure_greeter()?;
+        } else if self.uses_ly() {
+            println!("\n==> Configurando tela de login Ly");
+            self.configure_ly()?;
         } else {
             println!("\n==> Login: gerenciador atual preservado (sem ajustes de greeter).");
         }

@@ -7,6 +7,16 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 impl LinuxDesktop {
+    pub(super) fn configure_ly(&self) -> Result<(), String> {
+        let config = Path::new("/etc/ly/config.ini");
+        let original = fs::read_to_string(config)
+            .map_err(|error| format!("não foi possível ler {}: {error}", config.display()))?;
+        let work = TempWorkDir::new()?;
+        self.update_root_file(config, &desktop::render_ly(&original), "archsetup", &work)?;
+        println!("Ly configurado para Matrix e data/hora no próximo login.");
+        Ok(())
+    }
+
     pub(super) fn configure_greeter(&self) -> Result<(), String> {
         let config = Path::new("/etc/lightdm/slick-greeter.conf");
         let seat = Path::new("/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf");

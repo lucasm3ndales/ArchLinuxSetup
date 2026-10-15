@@ -9,9 +9,10 @@ pub const XFCE_CHANNELS: [&str; 4] = [
     "xfce4-keyboard-shortcuts",
 ];
 
-pub const ROOT_FILES: [&str; 4] = [
+pub const ROOT_FILES: [&str; 5] = [
     "/etc/lightdm/slick-greeter.conf",
     "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
+    "/etc/ly/config.ini",
     "/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf",
     "/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf",
 ];

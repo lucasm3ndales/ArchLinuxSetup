@@ -40,8 +40,7 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 
 pub fn help() -> i32 {
     println!("Uso: archsetup desktop [--profile NOME] [--dry-run]\n");
-    println!("Configura Xfce e touchpad X11; aplica o tema ao Slick Greeter quando LightDM está habilitado.");
-    println!("Ly e outros gerenciadores de login são preservados.");
+    println!("Configura Xfce e touchpad X11; ajusta o greeter LightDM/Slick ou Ly, se habilitado.");
     println!("Execute como usuário comum em uma sessão X11 do Xfce.");
     println!("O perfil opcional aplica somente ajustes de hardware compatíveis.");
     0
@@ -87,10 +86,12 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     );
     println!("Perfil: {}", options.profile.as_deref().unwrap_or("nenhum"));
     println!(
-        "  Xfce: Arc-Dark, ícones Arc, cursor Hackneyed, fontes, painel, busca, teclas Lock, espaços de trabalho e tecla Super."
+        "  Xfce: Nordic, ícones Zafiro Dark, cursor Hackneyed, fontes, painel, busca, teclas Lock, espaços de trabalho e tecla Super."
     );
     if linux.uses_lightdm() {
-        println!("  Login: Arc-Dark, Arc e Hackneyed no LightDM com Slick Greeter.");
+        println!("  Login: Nordic, Zafiro Dark e Hackneyed no LightDM com Slick Greeter.");
+    } else if linux.uses_ly() {
+        println!("  Login: animação Matrix e data/hora no Ly.");
     } else {
         println!("  Login: gerenciador atual preservado; tema do greeter não será alterado.");
     }

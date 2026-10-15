@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(theme.official, ["inter-font", "ttf-fira-code"]);
         assert_eq!(
             theme.aur,
-            ["arc-gtk-theme", "arc-icon-theme", "xcursor-hackneyed-light"]
+            ["nordic-theme", "zafiro-icon-theme", "xcursor-hackneyed-light"]
         );
         let desktop = select(&RepositorySource, root, &[Category::Desktop], None).unwrap();
         assert_eq!(
