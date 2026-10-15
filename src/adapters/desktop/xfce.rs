@@ -290,14 +290,26 @@ impl LinuxDesktop {
                 })?;
             }
         }
-        for (source, backup_name) in [
-            (self.home.join(".Xresources"), "Xresources.original"),
-            (self.home.join(".icons/default/index.theme"), "cursor-index.original"),
+        for (source, backup_name, rendered) in [
+            (
+                self.home.join(".Xresources"),
+                "Xresources.original",
+                desktop::render_xresources as fn(&str) -> String,
+            ),
+            (
+                self.home.join(".icons/default/index.theme"),
+                "cursor-index.original",
+                desktop::render_cursor_index as fn(&str) -> String,
+            ),
         ] {
             if source.is_file() {
-                fs::copy(&source, backup.join(backup_name)).map_err(|error| {
-                    format!("não foi possível salvar {}: {error}", source.display())
-                })?;
+                let current = fs::read_to_string(&source)
+                    .map_err(|error| format!("não foi possível ler {}: {error}", source.display()))?;
+                if rendered(&current) != current {
+                    fs::copy(&source, backup.join(backup_name)).map_err(|error| {
+                        format!("não foi possível salvar {}: {error}", source.display())
+                    })?;
+                }
             }
         }
         Ok(backup)
@@ -318,8 +330,9 @@ impl LinuxDesktop {
         ] {
             let existed = target.is_file();
             let current = if existed {
-                fs::read_to_string(&target)
-                    .map_err(|error| format!("não foi possível ler {}: {error}", target.display()))?
+                fs::read_to_string(&target).map_err(|error| {
+                    format!("não foi possível ler {}: {error}", target.display())
+                })?
             } else {
                 String::new()
             };
@@ -328,11 +341,13 @@ impl LinuxDesktop {
                 fs::create_dir_all(target.parent().ok_or("caminho de cursor inválido")?)
                     .map_err(|error| format!("não foi possível criar diretório: {error}"))?;
                 if !existed {
-                    fs::write(backup.join(created_name), &updated)
-                        .map_err(|error| format!("não foi possível registrar {}: {error}", target.display()))?;
+                    fs::write(backup.join(created_name), &updated).map_err(|error| {
+                        format!("não foi possível registrar {}: {error}", target.display())
+                    })?;
                 }
-                fs::write(&target, &updated)
-                    .map_err(|error| format!("não foi possível configurar {}: {error}", target.display()))?;
+                fs::write(&target, &updated).map_err(|error| {
+                    format!("não foi possível configurar {}: {error}", target.display())
+                })?;
             }
         }
         Ok(())

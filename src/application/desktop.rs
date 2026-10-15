@@ -404,9 +404,15 @@ mod tests {
         assert_eq!(render_xresources(&resources), resources);
 
         let index = render_cursor_index("[Icon Theme]\nName=Custom\nInherits=Old\n[Other]\nFoo=bar\n");
-        assert_eq!(index, "[Icon Theme]\nName=Custom\nInherits=Hackneyed\n[Other]\nFoo=bar\n");
+        assert_eq!(
+            index,
+            "[Icon Theme]\nName=Custom\nInherits=Hackneyed\n[Other]\nFoo=bar\n"
+        );
         assert_eq!(render_cursor_index(&index), index);
-        assert_eq!(render_cursor_index(""), "[Icon Theme]\nInherits=Hackneyed\n");
+        assert_eq!(
+            render_cursor_index(""),
+            "[Icon Theme]\nInherits=Hackneyed\n"
+        );
     }
 
     #[test]

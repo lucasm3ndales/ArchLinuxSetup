@@ -75,6 +75,7 @@ fn restore_command(options: Options) -> Result<(), String> {
             "Xfce: restaurar configuração anterior de {}",
             backup.display()
         );
+        println!("Cursor: restaurar .Xresources e .icons/default/index.theme se houver backup.");
     } else {
         println!("Xfce: nenhum backup anterior encontrado; nada será alterado.");
     }

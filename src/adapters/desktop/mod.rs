@@ -200,11 +200,19 @@ impl LinuxDesktop {
         for directory in [self.home.join(".icons"), self.home.join(".icons/default")] {
             match fs::symlink_metadata(&directory) {
                 Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
-                    return Err(format!("Diretório de cursores inválido: {}", directory.display()));
+                    return Err(format!(
+                        "Diretório de cursores inválido: {}",
+                        directory.display()
+                    ));
                 }
                 Ok(_) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(format!("não foi possível inspecionar {}: {error}", directory.display())),
+                Err(error) => {
+                    return Err(format!(
+                        "não foi possível inspecionar {}: {error}",
+                        directory.display()
+                    ));
+                }
             }
         }
         for config_file in [
@@ -228,7 +236,9 @@ impl LinuxDesktop {
                     ));
                 }
             }
-            if config_file.is_file() && config_file != self.config_dir.join("autostart/ksuperkey.desktop") {
+            if config_file.is_file()
+                && config_file != self.config_dir.join("autostart/ksuperkey.desktop")
+            {
                 fs::read_to_string(&config_file).map_err(|error| {
                     format!("não foi possível ler {}: {error}", config_file.display())
                 })?;
@@ -261,7 +271,12 @@ impl LinuxDesktop {
             ("/usr/share/icons/Arc/index.theme", false),
             ("/usr/share/icons/Hackneyed/cursors", true),
         ] {
-            if if directory { !Path::new(path).is_dir() } else { !Path::new(path).is_file() } {
+            let present = if directory {
+                Path::new(path).is_dir()
+            } else {
+                Path::new(path).is_file()
+            };
+            if !present {
                 return Err(format!(
                     "Tema, ícones ou cursor ausente: {path}. Execute archsetup pkg theme."
                 ));

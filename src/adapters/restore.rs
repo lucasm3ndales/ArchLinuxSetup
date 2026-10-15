@@ -53,21 +53,16 @@ impl LinuxRestore {
         Ok(backups.into_iter().next())
     }
 
-    fn oldest_cursor_backup(&self) -> Result<Option<PathBuf>, String> {
+    fn oldest_cursor_backup(&self, name: &str) -> Result<Option<PathBuf>, String> {
         let mut backups = Vec::new();
         for path in directory_entries(&self.backup_base())? {
             if path
                 .file_name()
                 .is_some_and(|name| name.to_string_lossy().starts_with("xfce-"))
                 && is_real_directory(&path)
-                && [
-                    "Xresources.original",
-                    "Xresources.created",
-                    "cursor-index.original",
-                    "cursor-index.created",
-                ]
-                .iter()
-                .any(|name| path.join(name).is_file())
+                && ["original", "created"]
+                    .iter()
+                    .any(|suffix| path.join(format!("{name}.{suffix}")).is_file())
             {
                 backups.push(path);
             }
@@ -255,11 +250,11 @@ impl LinuxRestore {
                 reject_symlink_or_other(&target)?;
                 reject_symlink_or_other(&source)?;
             }
-            if let Some(cursor_backup) = self.oldest_cursor_backup()? {
-                for (target, name) in [
-                    (self.home.join(".Xresources"), "Xresources"),
-                    (self.home.join(".icons/default/index.theme"), "cursor-index"),
-                ] {
+            for (target, name) in [
+                (self.home.join(".Xresources"), "Xresources"),
+                (self.home.join(".icons/default/index.theme"), "cursor-index"),
+            ] {
+                if let Some(cursor_backup) = self.oldest_cursor_backup(name)? {
                     reject_symlink_or_other(&target)?;
                     reject_symlink_or_other(&cursor_backup.join(format!("{name}.original")))?;
                     reject_symlink_or_other(&cursor_backup.join(format!("{name}.created")))?;
@@ -334,11 +329,11 @@ impl LinuxRestore {
                 restore_backup,
             )?;
         }
-        if let Some(cursor_backup) = self.oldest_cursor_backup()? {
-            for (target, name) in [
-                (self.home.join(".Xresources"), "Xresources"),
-                (self.home.join(".icons/default/index.theme"), "cursor-index"),
-            ] {
+        for (target, name) in [
+            (self.home.join(".Xresources"), "Xresources"),
+            (self.home.join(".icons/default/index.theme"), "cursor-index"),
+        ] {
+            if let Some(cursor_backup) = self.oldest_cursor_backup(name)? {
                 let original = cursor_backup.join(format!("{name}.original"));
                 let created = cursor_backup.join(format!("{name}.created"));
                 if original.is_file() {
@@ -618,7 +613,7 @@ mod tests {
         );
         fs::write(backups.join("xfce-002/Xresources.created"), "cursor").unwrap();
         assert_eq!(
-            restore.oldest_cursor_backup().unwrap(),
+            restore.oldest_cursor_backup("Xresources").unwrap(),
             Some(backups.join("xfce-002"))
         );
 
