@@ -8,6 +8,7 @@ pub const REQUIRED_PACKAGES: &[&str] = &[
     "nordic-theme",
     "zafiro-icon-theme",
     "xcursor-hackneyed-light",
+    "xcursor-hackneyed-dark",
     "xfce4-kbdleds-plugin",
 ];
 

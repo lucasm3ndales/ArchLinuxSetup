@@ -1,3 +1,4 @@
 nordic-theme
 zafiro-icon-theme
 xcursor-hackneyed-light
+xcursor-hackneyed-dark
