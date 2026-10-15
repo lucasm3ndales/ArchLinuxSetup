@@ -13,7 +13,7 @@ cd ArchLinuxSetup
 ./install.sh
 ```
 
-Se o repositório já estiver clonado, execute apenas `./install.sh` na raiz. O instalador atualiza os pacotes do sistema, instala Git, `base-devel` e Rust/Cargo se necessário, compila o projeto e executa `archsetup link`. Ele respeita uma instalação existente de `rust` ou `rustup`, sem instalar os dois pacotes conflitantes. O link fica em `~/.local/bin/archsetup`; se necessário, o comando `link` adiciona esse diretório ao PATH do Bash ou Zsh. Abra um novo terminal e confira com `archsetup doctor`. Mantenha o repositório no mesmo lugar para preservar o link.
+Se o repositório já estiver clonado, execute apenas `./install.sh` na raiz. O instalador atualiza os pacotes do sistema, instala Git, `base-devel` e Rust/Cargo se necessário, compila o projeto e executa `archsetup link`. Ele respeita uma instalação existente de `rust` ou `rustup`, sem instalar os dois pacotes conflitantes. Se usar `rustup` sem uma toolchain padrão, configura `stable` antes de compilar e verifica se `cargo` e `rustc` funcionam. O link fica em `~/.local/bin/archsetup`; se necessário, o comando `link` adiciona esse diretório ao PATH do Bash ou Zsh. Abra um novo terminal e confira com `archsetup doctor`. Mantenha o repositório no mesmo lugar para preservar o link.
 
 Se preferir fazer essas etapas manualmente, use Rust 1.85 ou mais recente e Cargo, depois execute `cargo build --release --locked` e `./target/release/archsetup link` como usuário comum.
 

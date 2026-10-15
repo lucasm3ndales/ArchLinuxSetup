@@ -38,14 +38,18 @@ printf '==> Atualizando o Arch e preparando Git, ferramentas de compilação e R
 sudo pacman -Syu --needed --noconfirm "${packages[@]}"
 
 if command -v rustup >/dev/null 2>&1 \
-    && ! pacman -Qq rust >/dev/null 2>&1 \
-    && ! rustup show active-toolchain >/dev/null 2>&1; then
-    printf '\n==> Configurando a toolchain Rust estável\n'
-    rustup default stable
+    && ! pacman -Qq rust >/dev/null 2>&1; then
+    toolchains="$(rustup toolchain list)" || fail 'Não foi possível consultar as toolchains do rustup.'
+    if ! grep -Fq '(default)' <<< "$toolchains"; then
+        printf '\n==> Configurando a toolchain Rust estável\n'
+        rustup default stable || fail 'Não foi possível configurar a toolchain Rust estável.'
+    fi
 fi
 
 command -v cargo >/dev/null 2>&1 || fail 'Cargo não foi encontrado após a instalação.'
 command -v rustc >/dev/null 2>&1 || fail 'Rust não foi encontrado após a instalação.'
+cargo --version >/dev/null 2>&1 || fail 'Cargo está no PATH, mas não funciona. Confira a toolchain com rustup toolchain list e execute rustup default stable.'
+rustc --version >/dev/null 2>&1 || fail 'Rust está no PATH, mas não funciona. Confira a toolchain com rustup toolchain list e execute rustup default stable.'
 
 printf '\n==> Compilando o ArchSetup\n'
 cd -- "$repo_dir"
