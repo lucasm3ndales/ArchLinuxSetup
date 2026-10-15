@@ -9,9 +9,7 @@ pub const XFCE_CHANNELS: [&str; 4] = [
     "xfce4-keyboard-shortcuts",
 ];
 
-pub const ROOT_FILES: [&str; 5] = [
-    "/etc/lightdm/slick-greeter.conf",
-    "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
+pub const ROOT_FILES: [&str; 3] = [
     "/etc/ly/config.ini",
     "/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf",
     "/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf",
@@ -54,7 +52,7 @@ pub fn parse_packages(content: &str) -> Result<Vec<String>, String> {
     let mut packages = Vec::new();
     for name in content.lines() {
         if !valid_package_name(name) {
-            return Err(format!("Nome de pacote inválido no registro: {name}"));
+            return Err(format!("Invalid package name in record: {name}"));
         }
         if seen.insert(name) {
             packages.push(name.to_owned());
@@ -74,13 +72,13 @@ pub struct DockerBefore {
 pub fn parse_docker_before(content: &str, current_user: &str) -> Result<DockerBefore, String> {
     let values: Vec<_> = content.lines().collect();
     if values.len() != 4 || values[0] != current_user || current_user.is_empty() {
-        return Err("Registro anterior do Docker inválido.".to_owned());
+        return Err("Invalid previous Docker state record.".to_owned());
     }
     fn bool_value(value: &str) -> Result<bool, String> {
         match value {
             "yes" => Ok(true),
             "no" => Ok(false),
-            _ => Err("Registro anterior do Docker inválido.".to_owned()),
+            _ => Err("Invalid previous Docker state record.".to_owned()),
         }
     }
     Ok(DockerBefore {

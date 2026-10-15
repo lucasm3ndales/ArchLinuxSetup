@@ -2,28 +2,28 @@
 set -euo pipefail
 
 fail() {
-    printf 'Erro: %s\n' "$1" >&2
+    printf 'Error: %s\n' "$1" >&2
     exit 1
 }
 
 if (( $# != 0 )); then
-    fail 'install.sh não aceita argumentos.'
+    fail 'install.sh does not accept arguments.'
 fi
 
 if (( EUID == 0 )); then
-    fail 'Execute como usuário comum, sem sudo.'
+    fail 'Run as a regular user, without sudo.'
 fi
 
 if [[ ! -r /etc/os-release ]] || ! grep -Eq '^ID="?arch"?$' /etc/os-release; then
-    fail 'Este instalador exige Arch Linux.'
+    fail 'This installer requires Arch Linux.'
 fi
 
-command -v pacman >/dev/null 2>&1 || fail 'pacman não encontrado.'
-command -v sudo >/dev/null 2>&1 || fail 'sudo não encontrado.'
+command -v pacman >/dev/null 2>&1 || fail 'pacman not found.'
+command -v sudo >/dev/null 2>&1 || fail 'sudo not found.'
 
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 [[ -f "$repo_dir/Cargo.toml" && -f "$repo_dir/Cargo.lock" && -f "$repo_dir/src/main.rs" ]] \
-    || fail 'install.sh precisa estar na raiz do repositório ArchSetup.'
+    || fail 'install.sh must be in the ArchSetup repository root.'
 
 packages=(git base-devel)
 if pacman -Qq rustup >/dev/null 2>&1; then
@@ -34,28 +34,28 @@ elif ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; t
     packages+=(rustup)
 fi
 
-printf '==> Atualizando o Arch e preparando Git, ferramentas de compilação e Rust\n'
+printf '==> Updating Arch and preparing Git, build tools and Rust\n'
 sudo pacman -Syu --needed --noconfirm "${packages[@]}"
 
 if command -v rustup >/dev/null 2>&1 \
     && ! pacman -Qq rust >/dev/null 2>&1; then
-    toolchains="$(rustup toolchain list)" || fail 'Não foi possível consultar as toolchains do rustup.'
+    toolchains="$(rustup toolchain list)" || fail 'Could not list rustup toolchains.'
     if ! grep -Fq '(default)' <<< "$toolchains"; then
-        printf '\n==> Configurando a toolchain Rust estável\n'
-        rustup default stable || fail 'Não foi possível configurar a toolchain Rust estável.'
+        printf '\n==> Configuring the stable Rust toolchain\n'
+        rustup default stable || fail 'Could not configure the stable Rust toolchain.'
     fi
 fi
 
-command -v cargo >/dev/null 2>&1 || fail 'Cargo não foi encontrado após a instalação.'
-command -v rustc >/dev/null 2>&1 || fail 'Rust não foi encontrado após a instalação.'
-cargo --version >/dev/null 2>&1 || fail 'Cargo está no PATH, mas não funciona. Confira a toolchain com rustup toolchain list e execute rustup default stable.'
-rustc --version >/dev/null 2>&1 || fail 'Rust está no PATH, mas não funciona. Confira a toolchain com rustup toolchain list e execute rustup default stable.'
+command -v cargo >/dev/null 2>&1 || fail 'Cargo was not found after installation.'
+command -v rustc >/dev/null 2>&1 || fail 'Rust was not found after installation.'
+cargo --version >/dev/null 2>&1 || fail 'Cargo is in PATH but does not work. Check rustup toolchain list and run rustup default stable.'
+rustc --version >/dev/null 2>&1 || fail 'Rust is in PATH but does not work. Check rustup toolchain list and run rustup default stable.'
 
-printf '\n==> Compilando o ArchSetup\n'
+printf '\n==> Building ArchSetup\n'
 cd -- "$repo_dir"
 cargo build --release --locked
 
-printf '\n==> Criando o comando archsetup\n'
+printf '\n==> Creating the archsetup command\n'
 ./target/release/archsetup link
 
-printf '\nConcluído. Abra um novo terminal e execute archsetup doctor.\n'
+printf '\nComplete. Open a new terminal and run archsetup doctor.\n'

@@ -10,7 +10,7 @@ fn main() {
     let invocation = match cli::parse(args) {
         Ok(invocation) => invocation,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             eprintln!();
             eprintln!("{}", cli::USAGE);
             std::process::exit(2);
@@ -19,7 +19,7 @@ fn main() {
     let root = match project::find_root() {
         Ok(root) => root,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             std::process::exit(1);
         }
     };

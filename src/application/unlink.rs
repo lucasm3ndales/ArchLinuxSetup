@@ -41,7 +41,7 @@ pub fn plan(
         LinkState::Symlink(path) if path == source || path == legacy_source => true,
         LinkState::Symlink(_) | LinkState::Occupied => {
             return Err(format!(
-                "{} existe, mas não pertence a este repositório.",
+                "{} exists but does not belong to this repository.",
                 target.display()
             ));
         }
@@ -54,7 +54,7 @@ pub fn plan(
             .unwrap_or_default();
         let recorded = PathBuf::from(OsString::from_vec(first_line.to_vec()));
         if recorded != home.join(".bashrc") && recorded != home.join(".zshrc") {
-            return Err("Registro de PATH inválido.".to_owned());
+            return Err("Invalid PATH record.".to_owned());
         }
         Some(recorded)
     } else {

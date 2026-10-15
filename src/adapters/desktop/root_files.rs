@@ -10,48 +10,10 @@ impl LinuxDesktop {
     pub(super) fn configure_ly(&self) -> Result<(), String> {
         let config = Path::new("/etc/ly/config.ini");
         let original = fs::read_to_string(config)
-            .map_err(|error| format!("não foi possível ler {}: {error}", config.display()))?;
+            .map_err(|error| format!("could not read {}: {error}", config.display()))?;
         let work = TempWorkDir::new()?;
         self.update_root_file(config, &desktop::render_ly(&original), "archsetup", &work)?;
-        println!("Ly configurado para Matrix e data/hora no próximo login.");
-        Ok(())
-    }
-
-    pub(super) fn configure_greeter(&self) -> Result<(), String> {
-        let config = Path::new("/etc/lightdm/slick-greeter.conf");
-        let seat = Path::new("/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf");
-        let original = match fs::read_to_string(config) {
-            Ok(content) => content,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-            Err(error) => {
-                return Err(format!(
-                    "não foi possível ler {}: {error}",
-                    config.display()
-                ));
-            }
-        };
-        let work = TempWorkDir::new()?;
-        run(
-            "sudo",
-            &[
-                "install",
-                "-d",
-                "-m",
-                "755",
-                "--",
-                "/etc/lightdm/lightdm.conf.d",
-            ],
-        )?;
-        self.update_root_file(
-            config,
-            &desktop::render_greeter(&original),
-            "archsetup",
-            &work,
-        )?;
-        self.update_root_file(seat, desktop::SEAT_CONFIG, "archsetup", &work)?;
-        println!(
-            "Concluído. A nova aparência aparecerá no próximo login; a sessão atual continua aberta."
-        );
+        println!("Ly is configured to show Matrix animation and date/time at the next login.");
         Ok(())
     }
 
@@ -59,19 +21,19 @@ impl LinuxDesktop {
         let work = TempWorkDir::new()?;
         let natural = Path::new("/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf");
         if self.update_root_file(natural, desktop::NATURAL_SCROLL, "archlinuxsetup", &work)? {
-            println!("Rolagem natural configurada para a próxima sessão X11.");
+            println!("Natural scrolling will take effect in the next X11 session.");
         } else {
-            println!("Rolagem natural já configurada; nenhuma alteração necessária.");
+            println!("Natural scrolling is already configured; no changes needed.");
         }
         if tapping {
             let target = Path::new("/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf");
             if self.update_root_file(target, desktop::TAPPING, "archlinuxsetup", &work)? {
-                println!("Toque para clicar configurado para a próxima sessão X11.");
+                println!("Tap-to-click will take effect in the next X11 session.");
             } else {
-                println!("Toque para clicar já configurado; nenhuma alteração necessária.");
+                println!("Tap-to-click is already configured; no changes needed.");
             }
         }
-        println!("Concluído: configurações do touchpad processadas.");
+        println!("Complete: touchpad settings applied.");
         Ok(())
     }
 
@@ -85,36 +47,28 @@ impl LinuxDesktop {
         let metadata = match fs::symlink_metadata(target) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 return Err(format!(
-                    "Não vou substituir um link simbólico: {}",
+                    "Will not replace a symbolic link: {}",
                     target.display()
                 ));
             }
             Ok(metadata) if !metadata.is_file() => {
-                return Err(format!(
-                    "Caminho não é um arquivo comum: {}",
-                    target.display()
-                ));
+                return Err(format!("Path is not a regular file: {}", target.display()));
             }
             Ok(metadata) => Some(metadata),
             Err(error) if error.kind() == io::ErrorKind::NotFound => None,
             Err(error) => {
-                return Err(format!(
-                    "não foi possível inspecionar {}: {error}",
-                    target.display()
-                ));
+                return Err(format!("could not inspect {}: {error}", target.display()));
             }
         };
-        let name = target
-            .file_name()
-            .ok_or("nome de arquivo de configuração inválido")?;
+        let name = target.file_name().ok_or("invalid configuration filename")?;
         let source = work.path.join(name);
         fs::write(&source, content)
-            .map_err(|error| format!("não foi possível preparar {}: {error}", target.display()))?;
+            .map_err(|error| format!("could not prepare {}: {error}", target.display()))?;
         let source_text = source.to_string_lossy();
         let target_text = target.to_string_lossy();
         if metadata.is_some() && success("sudo", &["cmp", "-s", "--", &source_text, &target_text])?
         {
-            println!("Já configurado: {}", target.display());
+            println!("Already configured: {}", target.display());
             return Ok(false);
         }
         if metadata.is_some() {
@@ -142,15 +96,13 @@ impl LinuxDesktop {
             let hash = digest
                 .split_whitespace()
                 .next()
-                .ok_or("sha256sum não retornou hash")?;
-            fs::create_dir_all(&marker_dir).map_err(|error| {
-                format!("não foi possível criar {}: {error}", marker_dir.display())
-            })?;
-            fs::write(&marker, format!("{hash} {}\n", target.display())).map_err(|error| {
-                format!("não foi possível registrar {}: {error}", marker.display())
-            })?;
+                .ok_or("sha256sum returned no hash")?;
+            fs::create_dir_all(&marker_dir)
+                .map_err(|error| format!("could not create {}: {error}", marker_dir.display()))?;
+            fs::write(&marker, format!("{hash} {}\n", target.display()))
+                .map_err(|error| format!("could not record {}: {error}", marker.display()))?;
         }
-        println!("Atualizado: {}", target.display());
+        println!("Updated: {}", target.display());
         Ok(true)
     }
 }
@@ -174,23 +126,18 @@ impl TempWorkDir {
                 Ok(()) => return Ok(Self { path }),
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(format!(
-                        "não foi possível criar diretório temporário: {error}"
-                    ));
+                    return Err(format!("could not create temporary directory: {error}"));
                 }
             }
         }
-        Err("não foi possível reservar um diretório temporário".to_owned())
+        Err("could not reserve a temporary directory".to_owned())
     }
 }
 
 impl Drop for TempWorkDir {
     fn drop(&mut self) {
         if let Err(error) = fs::remove_dir_all(&self.path) {
-            eprintln!(
-                "Aviso: não foi possível remover {}: {error}",
-                self.path.display()
-            );
+            eprintln!("Warning: could not remove {}: {error}", self.path.display());
         }
     }
 }

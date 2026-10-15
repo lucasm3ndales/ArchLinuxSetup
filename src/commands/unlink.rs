@@ -17,15 +17,15 @@ fn parse_args(args: &[OsString]) -> Result<Mode, String> {
         match option.to_string_lossy().as_ref() {
             "--dry-run" => dry_run = true,
             "-h" | "--help" => return Ok(Mode::Help),
-            other => return Err(format!("opção desconhecida em unlink: {other}")),
+            other => return Err(format!("unknown option for unlink: {other}")),
         }
     }
     Ok(if dry_run { Mode::DryRun } else { Mode::Apply })
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup unlink [--dry-run]");
-    println!("Remove o link do comando e a linha PATH registrada pelo ArchSetup.");
+    println!("Usage: archsetup unlink [--dry-run]");
+    println!("Removes the command link and the PATH entry recorded by ArchSetup.");
     0
 }
 
@@ -33,7 +33,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     let mode = match parse_args(args) {
         Ok(mode) => mode,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             return 2;
         }
     };
@@ -43,7 +43,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     match unlink_command(root, mode == Mode::DryRun) {
         Ok(()) => 0,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             1
         }
     }
@@ -51,39 +51,39 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
 
 fn unlink_command(root: &Path, dry_run: bool) -> Result<(), String> {
     if system::effective_uid()? == 0 {
-        return Err("Execute como usuário comum, sem sudo.".to_owned());
+        return Err("Run as a regular user, without sudo.".to_owned());
     }
     let home = std::env::var_os("HOME")
         .filter(|home| !home.is_empty())
         .map(PathBuf::from)
-        .ok_or_else(|| "HOME não está definido".to_owned())?;
+        .ok_or_else(|| "HOME is not set".to_owned())?;
     let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from);
     let fs = FileSystem;
     let plan = unlink::plan(&fs, root, &home, state_home.as_deref())?;
 
-    println!("==> Removendo o comando archsetup");
+    println!("==> Removing the archsetup command");
     if plan.remove_link {
-        println!("Comando: remover {}", plan.target.display());
+        println!("Command: remove {}", plan.target.display());
     } else {
-        println!("Comando: link já ausente.");
+        println!("Command: link is already absent.");
     }
     if let (Some(rc), Some(_)) = (&plan.rc, &plan.updated_rc) {
-        println!("PATH: remover a linha adicionada em {}", rc.display());
+        println!("PATH: remove the entry added to {}", rc.display());
     }
     if dry_run {
-        println!("Prévia concluída. Nenhuma alteração realizada.");
+        println!("Preview complete. No changes made.");
         return Ok(());
     }
 
     fs.apply(&plan)?;
     if let (Some(rc), Some(_)) = (&plan.rc, &plan.updated_rc) {
-        println!("PATH removido de {}.", rc.display());
+        println!("PATH entry removed from {}.", rc.display());
     }
     if plan.remove_link {
-        println!("Comando removido.");
+        println!("Command removed.");
     }
     println!(
-        "Concluído. Backups preservados em {}.",
+        "Complete. Backups preserved at {}.",
         plan.backup_base.display()
     );
     Ok(())

@@ -75,13 +75,13 @@ impl LinuxRestore {
         let manifest = self.manifest();
         require_regular(
             &manifest,
-            "Registro de pacotes novos ausente. Não é seguro inferir o que remover.",
+            "The new-package record is missing. Cannot safely determine what to remove.",
         )?;
         if !system::command_exists("pacman") {
-            return Err("pacman não encontrado.".to_owned());
+            return Err("pacman not found.".to_owned());
         }
         let content = fs::read_to_string(&manifest)
-            .map_err(|error| format!("não foi possível ler {}: {error}", manifest.display()))?;
+            .map_err(|error| format!("could not read {}: {error}", manifest.display()))?;
         let mut installed = Vec::new();
         for package in restore::parse_packages(&content)? {
             if status(Command::new("pacman").args(["-Qq", &package]))? {
@@ -120,7 +120,7 @@ impl LinuxRestore {
             });
         if needs_sudo {
             if !system::command_exists("sudo") {
-                return Err("sudo não encontrado.".to_owned());
+                return Err("sudo not found.".to_owned());
             }
             run(Command::new("sudo").arg("-v"))?;
         }
@@ -137,10 +137,9 @@ impl LinuxRestore {
                     let hash = digest
                         .split_whitespace()
                         .next()
-                        .ok_or("sha256sum não retornou hash")?;
-                    let recorded = fs::read_to_string(&marker).map_err(|error| {
-                        format!("não foi possível ler {}: {error}", marker.display())
-                    })?;
+                        .ok_or("sha256sum returned no hash")?;
+                    let recorded = fs::read_to_string(&marker)
+                        .map_err(|error| format!("could not read {}: {error}", marker.display()))?;
                     recorded
                         .lines()
                         .any(|line| line == format!("{hash} {}", path.display()))
@@ -162,7 +161,10 @@ impl LinuxRestore {
             let mut command = Command::new("pacman");
             command.args(["-R", "--print", "--"]).args(packages);
             if !status(&mut command)? {
-                return Err("A remoção quebraria dependências. Revise os pacotes antes de tentar novamente.".to_owned());
+                return Err(
+                    "Removal would break dependencies. Review the packages before trying again."
+                        .to_owned(),
+                );
             }
         }
 
@@ -173,16 +175,12 @@ impl LinuxRestore {
         let restore_backup = self
             .backup_base()
             .join(format!("restore-{stamp}-{}", std::process::id()));
-        fs::create_dir_all(&restore_backup).map_err(|error| {
-            format!(
-                "não foi possível criar {}: {error}",
-                restore_backup.display()
-            )
-        })?;
+        fs::create_dir_all(&restore_backup)
+            .map_err(|error| format!("could not create {}: {error}", restore_backup.display()))?;
 
         if let Some(xfce_backup) = xfce_backup {
             self.restore_xfce(xfce_backup, &restore_backup)?;
-            println!("Xfce restaurado. A configuração será carregada na próxima sessão.");
+            println!("Xfce restored. The configuration will load in the next session.");
         }
         if self.state_dir.join("browser-before/recorded").is_file() {
             for label in [
@@ -195,37 +193,31 @@ impl LinuxRestore {
                     &restore_backup,
                 )?;
             }
-            println!("Associações do navegador restauradas.");
+            println!("Browser associations restored.");
         }
         for file in root_files {
             self.restore_root_file(file, stamp)?;
         }
         if let Some(docker) = docker {
             restore_docker(&docker)?;
-            println!("Estado anterior de grupo e serviço Docker restaurado.");
+            println!("Previous Docker group and service state restored.");
         }
         if let Some(packages) = packages {
             if !packages.is_empty() {
                 run(Command::new("sudo")
                     .args(["pacman", "-R", "--noconfirm", "--"])
                     .args(packages))?;
-                println!(
-                    "Pacotes registrados removidos. Dependências não registradas foram preservadas."
-                );
+                println!("Tracked packages removed. Untracked dependencies were preserved.");
             }
             let manifest = self.manifest();
             let archived = restore_backup.join("packages-installed");
             file_backup::copy(&manifest, &archived)?;
-            File::create(&manifest).map_err(|error| {
-                format!("não foi possível limpar {}: {error}", manifest.display())
-            })?;
-            println!(
-                "Registro de pacotes ativos arquivado em {}.",
-                archived.display()
-            );
+            File::create(&manifest)
+                .map_err(|error| format!("could not clean {}: {error}", manifest.display()))?;
+            println!("Active package record archived at {}.", archived.display());
         }
         println!(
-            "Concluído. Backups preservados em {}.",
+            "Complete. Backups preserved at {}.",
             self.backup_base().display()
         );
         Ok(())
@@ -279,16 +271,14 @@ impl LinuxRestore {
             .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
         {
             return Err(
-                "Saia da sessão gráfica e execute restore em um TTY para restaurar o Xfce."
+                "Log out of the graphical session and run restore from a TTY to restore Xfce."
                     .to_owned(),
             );
         }
         if system::command_exists("pgrep") {
             let uid = system::effective_uid()?.to_string();
             if status(Command::new("pgrep").args(["-u", &uid, "-x", "xfconfd"]))? {
-                return Err(
-                    "xfconfd está ativo. Encerre a sessão Xfce antes de restaurar.".to_owned(),
-                );
+                return Err("xfconfd is running. End the Xfce session before restoring.".to_owned());
             }
         }
         Ok(())
@@ -345,7 +335,7 @@ impl LinuxRestore {
                         self.restore_user_file(&target, &original, restore_backup)?;
                     } else {
                         println!(
-                            "Cursor: {} foi alterado depois da instalação; arquivo preservado.",
+                            "Cursor: {} changed after installation; file preserved.",
                             target.display()
                         );
                     }
@@ -370,19 +360,17 @@ impl LinuxRestore {
                     PathBuf::from("external").join(target.strip_prefix("/").unwrap_or(target))
                 });
             let archived = restore_backup.join(relative);
-            fs::create_dir_all(archived.parent().ok_or("caminho de backup inválido")?)
-                .map_err(|error| format!("não foi possível criar diretório de backup: {error}"))?;
+            fs::create_dir_all(archived.parent().ok_or("invalid backup path")?)
+                .map_err(|error| format!("could not create backup directory: {error}"))?;
             file_backup::copy(target, &archived)?;
         }
         if original.is_file() {
-            fs::create_dir_all(target.parent().ok_or("caminho de destino inválido")?).map_err(
-                |error| format!("não foi possível criar diretório de configuração: {error}"),
-            )?;
+            fs::create_dir_all(target.parent().ok_or("invalid destination path")?)
+                .map_err(|error| format!("could not create configuration directory: {error}"))?;
             file_backup::copy(original, target)?;
         } else if target.is_file() {
-            fs::remove_file(target).map_err(|error| {
-                format!("não foi possível remover {}: {error}", target.display())
-            })?;
+            fs::remove_file(target)
+                .map_err(|error| format!("could not remove {}: {error}", target.display()))?;
         }
         Ok(())
     }
@@ -390,7 +378,7 @@ impl LinuxRestore {
     fn root_marker(&self, path: &Path) -> PathBuf {
         self.state_dir
             .join("root-created")
-            .join(path.file_name().expect("arquivo raiz tem nome"))
+            .join(path.file_name().expect("root file has a name"))
     }
 
     fn restore_root_file(&self, file: RootFile, stamp: u128) -> Result<(), String> {
@@ -404,10 +392,7 @@ impl LinuxRestore {
                     .arg("-f")
                     .arg("--")
                     .arg(target))?;
-                println!(
-                    "Removido arquivo criado pelo ArchSetup: {}",
-                    target.display()
-                );
+                println!("Removed file created by ArchSetup: {}", target.display());
             }
             RootAction::Restore(backup) => {
                 if target.is_file() {
@@ -419,14 +404,14 @@ impl LinuxRestore {
                     .arg("--")
                     .arg(&backup)
                     .arg(target))?;
-                println!("Restaurado: {}", target.display());
+                println!("Restored: {}", target.display());
             }
             RootAction::PreserveChanged => println!(
-                "Mantido porque foi alterado após o ArchSetup: {}",
+                "Preserved because it changed after ArchSetup: {}",
                 target.display()
             ),
             RootAction::PreserveUnknown => println!(
-                "Mantido sem backup anterior comprovado: {}",
+                "Preserved because no previous backup was verified: {}",
                 target.display()
             ),
             RootAction::None => {}
@@ -439,10 +424,10 @@ impl LinuxRestore {
         if !path.exists() {
             return Ok(None);
         }
-        require_regular(&path, "Registro anterior do Docker inválido.")?;
+        require_regular(&path, "Invalid previous Docker state record.")?;
         let user = capture(Command::new("id").arg("-un"))?;
         let content = fs::read_to_string(&path)
-            .map_err(|error| format!("não foi possível ler {}: {error}", path.display()))?;
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         restore::parse_docker_before(&content, user.trim()).map(Some)
     }
 }
@@ -482,10 +467,10 @@ fn backup_root_current(target: &Path, stamp: u128) -> Result<(), String> {
 }
 
 fn oldest_root_backup(target: &Path) -> Result<Option<PathBuf>, String> {
-    let parent = target.parent().ok_or("arquivo raiz sem diretório pai")?;
+    let parent = target.parent().ok_or("root file has no parent directory")?;
     let name = target
         .file_name()
-        .ok_or("arquivo raiz sem nome")?
+        .ok_or("root file has no name")?
         .to_string_lossy();
     let mut paths = Vec::new();
     for path in directory_entries(parent)? {
@@ -509,10 +494,7 @@ fn directory_entries(dir: &Path) -> Result<Vec<PathBuf>, String> {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
-            return Err(format!(
-                "não foi possível listar {}: {error}",
-                dir.display()
-            ));
+            return Err(format!("could not list {}: {error}", dir.display()));
         }
     };
     entries
@@ -535,17 +517,14 @@ fn is_regular_file(path: &Path) -> bool {
 fn reject_symlink_or_other(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => {
-            Err(format!("Link simbólico inesperado: {}", path.display()))
+            Err(format!("Unexpected symbolic link: {}", path.display()))
         }
         Ok(metadata) if !metadata.is_file() => {
-            Err(format!("Caminho não é arquivo comum: {}", path.display()))
+            Err(format!("Path is not a regular file: {}", path.display()))
         }
         Ok(_) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "não foi possível verificar {}: {error}",
-            path.display()
-        )),
+        Err(error) => Err(format!("could not verify {}: {error}", path.display())),
     }
 }
 
@@ -560,12 +539,12 @@ fn run(command: &mut Command) -> Result<(), String> {
     io::stdout().flush().map_err(|error| error.to_string())?;
     let status = command
         .status()
-        .map_err(|error| format!("não foi possível executar {:?}: {error}", command))?;
+        .map_err(|error| format!("could not run {:?}: {error}", command))?;
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "comando falhou: {:?} (código {})",
+            "command failed: {:?} (exit code {})",
             command,
             status.code().unwrap_or(1)
         ))
@@ -576,17 +555,17 @@ fn status(command: &mut Command) -> Result<bool, String> {
     command
         .output()
         .map(|output| output.status.success())
-        .map_err(|error| format!("não foi possível executar {:?}: {error}", command))
+        .map_err(|error| format!("could not run {:?}: {error}", command))
 }
 
 fn capture(command: &mut Command) -> Result<String, String> {
     let output = command
         .output()
-        .map_err(|error| format!("não foi possível executar {:?}: {error}", command))?;
+        .map_err(|error| format!("could not run {:?}: {error}", command))?;
     if !output.status.success() {
-        return Err(format!("comando falhou: {:?}", command));
+        return Err(format!("command failed: {:?}", command));
     }
-    String::from_utf8(output.stdout).map_err(|_| format!("saída inválida de {:?}", command))
+    String::from_utf8(output.stdout).map_err(|_| format!("invalid output from {:?}", command))
 }
 
 #[cfg(test)]

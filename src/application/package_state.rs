@@ -6,7 +6,7 @@ pub fn parse_inventory(content: &str) -> Result<Inventory, String> {
     let mut packages = Inventory::new();
     for name in content.lines().filter(|name| !name.is_empty()) {
         if !valid_package_name(name) {
-            return Err(format!("nome de pacote inválido no inventário: {name}"));
+            return Err(format!("invalid package name in inventory: {name}"));
         }
         packages.insert(name.to_owned());
     }

@@ -16,13 +16,13 @@ fn parse_args(args: &[OsString]) -> Result<Mode, String> {
         [] => Ok(Mode::Apply),
         [option] if option == "--dry-run" => Ok(Mode::DryRun),
         [option] if option == "-h" || option == "--help" => Ok(Mode::Help),
-        _ => Err("aur aceita apenas --dry-run ou --help".to_owned()),
+        _ => Err("aur accepts only --dry-run or --help".to_owned()),
     }
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup aur [--dry-run]");
-    println!("Instala o auxiliar paru para pacotes da AUR.");
+    println!("Usage: archsetup aur [--dry-run]");
+    println!("Installs the paru helper for AUR packages.");
     0
 }
 
@@ -30,7 +30,7 @@ pub fn run(args: &[OsString]) -> i32 {
     let mode = match parse_args(args) {
         Ok(mode) => mode,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 2;
         }
     };
@@ -40,47 +40,45 @@ pub fn run(args: &[OsString]) -> i32 {
     let linux = LinuxAur;
     let plan = aur::plan(&linux);
     println!(
-        "==> {} do paru",
+        "==> {}",
         if mode == Mode::DryRun {
-            "Prévia da instalação"
+            "paru installation preview"
         } else {
-            "Instalação"
+            "Installing paru"
         }
     );
     if let Some(path) = &plan.paru {
-        println!("paru já está disponível: {}", path.display());
-        println!("Concluído: nenhuma instalação necessária.");
+        println!("paru is already available: {}", path.display());
+        println!("Complete: no installation needed.");
         return 0;
     }
     match plan.rust {
-        RustProvider::RustupInstalled => println!("Rust: rustup já instalado."),
+        RustProvider::RustupInstalled => println!("Rust: rustup is already installed."),
         RustProvider::RustInstalled => {
-            println!("Rust: rust já instalado; rustup não será instalado.")
+            println!("Rust: rust is already installed; rustup will not be installed.")
         }
         RustProvider::InstallRustup => {
-            println!("Rust: rustup será instalado e configurado antes da compilação.")
+            println!("Rust: rustup will be installed and configured before building.")
         }
-        RustProvider::Unknown => println!("Rust: estado não verificado (pacman indisponível)."),
+        RustProvider::Unknown => println!("Rust: state not checked (pacman unavailable)."),
     }
-    println!("Etapas:");
-    println!(
-        "  1. Atualizar o Arch e instalar git, base-devel e uma ferramenta Rust, se necessário."
-    );
-    println!("  2. Clonar https://aur.archlinux.org/paru.git em diretório temporário.");
-    println!("  3. Mostrar o PKGBUILD e listar os demais arquivos.");
-    println!("  4. Compilar e instalar com makepkg -si --noconfirm como usuário comum.");
+    println!("Steps:");
+    println!("  1. Update Arch and install git, base-devel and a Rust tool if needed.");
+    println!("  2. Clone https://aur.archlinux.org/paru.git into a temporary directory.");
+    println!("  3. Show the PKGBUILD and list other files.");
+    println!("  4. Build and install with makepkg -si --noconfirm as a regular user.");
     if mode == Mode::DryRun {
-        println!("Prévia concluída. Nenhuma alteração realizada.");
+        println!("Preview complete. No changes made.");
         return 0;
     }
     if let Err(error) = linux.preflight() {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     let home = match std::env::var_os("HOME").filter(|home| !home.is_empty()) {
         Some(home) => PathBuf::from(home),
         None => {
-            eprintln!("Erro: HOME não está definido.");
+            eprintln!("Error: HOME is not set.");
             return 1;
         }
     };
@@ -88,7 +86,7 @@ pub fn run(args: &[OsString]) -> i32 {
     let tracker = match PackageTracker::begin(&home, state_home.as_deref()) {
         Ok(tracker) => tracker,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 1;
         }
     };
@@ -96,21 +94,21 @@ pub fn run(args: &[OsString]) -> i32 {
     let tracked = tracker.finish();
     if let Ok(count) = &tracked {
         if *count > 0 {
-            println!("Pacotes novos registrados para possível remoção: {count}");
+            println!("New packages tracked for possible removal: {count}");
         }
     }
     if let Err(error) = result {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         if let Err(tracking_error) = tracked {
-            eprintln!("Aviso: registro de pacotes incompleto: {tracking_error}");
+            eprintln!("Warning: package tracking is incomplete: {tracking_error}");
         }
         return 1;
     }
     if let Err(error) = tracked {
-        eprintln!("Erro: instalação concluída, mas registro de pacotes falhou: {error}");
+        eprintln!("Error: installation finished, but package tracking failed: {error}");
         return 1;
     }
-    println!("\nConcluído: paru instalado. Confira os pacotes com archsetup pkg --dry-run.");
+    println!("\nComplete: paru installed. Check packages with archsetup pkg --dry-run.");
     0
 }
 

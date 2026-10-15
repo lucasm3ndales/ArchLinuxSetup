@@ -4,8 +4,8 @@ use std::ffi::OsString;
 use std::path::Path;
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup profiles");
-    println!("Lista os perfis disponíveis neste repositório.");
+    println!("Usage: archsetup profiles");
+    println!("Lists profiles available in this repository.");
     0
 }
 
@@ -14,7 +14,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         [] => {}
         [option] if option == "-h" || option == "--help" => return help(),
         _ => {
-            eprintln!("Erro: profiles não aceita argumentos.");
+            eprintln!("Error: profiles does not accept arguments.");
             return 2;
         }
     }
@@ -22,18 +22,21 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     let names = match inspector.profile_names(root) {
         Ok(names) => names,
         Err(error) => {
-            eprintln!("Erro: não foi possível listar os perfis: {error}");
+            eprintln!("Error: could not list profiles: {error}");
             return 1;
         }
     };
-    println!("Perfis disponíveis:");
+    println!("Available profiles:");
     if names.is_empty() {
-        println!("  nenhum");
+        println!("  none");
     } else {
         for name in names {
             match doctor::read_profile(&inspector, root, &name) {
                 Ok(profile) => println!("  {name:<34} {}", profile.description),
-                Err(error) => { eprintln!("Erro: {error}"); return 1; }
+                Err(error) => {
+                    eprintln!("Error: {error}");
+                    return 1;
+                }
             }
         }
     }

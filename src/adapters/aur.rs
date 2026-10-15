@@ -30,44 +30,44 @@ impl AurProbe for LinuxAur {
 impl LinuxAur {
     pub fn preflight(&self) -> Result<(), String> {
         if system::effective_uid()? == 0 {
-            return Err("Execute como usuário comum, sem sudo.".to_owned());
+            return Err("Run as a regular user, without sudo.".to_owned());
         }
         if !io::stdin().is_terminal() {
             return Err(
-                "Um terminal interativo é necessário caso sudo solicite autenticação.".to_owned(),
+                "An interactive terminal is required if sudo requests authentication.".to_owned(),
             );
         }
         let os_release = fs::read_to_string("/etc/os-release")
-            .map_err(|_| "Não foi possível identificar a distribuição.".to_owned())?;
+            .map_err(|_| "Could not identify the distribution.".to_owned())?;
         if !os_release
             .lines()
             .any(|line| line == "ID=arch" || line == "ID=\"arch\"")
         {
-            return Err("Este comando só pode ser aplicado no Arch Linux.".to_owned());
+            return Err("This command can only run on Arch Linux.".to_owned());
         }
         for name in ["sudo", "pacman"] {
             if self.command_path(name).is_none() {
-                return Err(format!("Comando ausente: {name}"));
+                return Err(format!("Missing command: {name}"));
             }
         }
         Ok(())
     }
 
     pub fn apply(&self) -> Result<(), String> {
-        println!("\n==> Preparando ferramentas de compilação");
+        println!("\n==> Preparing build tools");
         run("sudo", &["-v"], None)?;
         let rust = crate::application::aur::plan(self).rust;
         let mut args = vec!["pacman", "-Syu", "--needed", "--noconfirm"];
         let packages = build_packages(rust);
         match rust {
             RustProvider::RustupInstalled => {
-                println!("rustup já instalado; será usado para compilar o paru.")
+                println!("rustup is installed and will be used to build paru.")
             }
             RustProvider::RustInstalled => {
-                println!("rust já instalado; será usado para compilar o paru.")
+                println!("rust is installed and will be used to build paru.")
             }
             RustProvider::InstallRustup | RustProvider::Unknown => {
-                println!("rustup será instalado antes de compilar o paru.")
+                println!("rustup will be installed before building paru.")
             }
         }
         args.extend(packages);
@@ -75,26 +75,24 @@ impl LinuxAur {
 
         for name in ["git", "makepkg"] {
             if self.command_path(name).is_none() {
-                return Err(format!(
-                    "{name} não encontrado após preparar as ferramentas."
-                ));
+                return Err(format!("{name} was not found after preparing build tools."));
             }
         }
         if system::installed("rustup") {
             if self.command_path("rustup").is_none() {
-                return Err("rustup instalado, mas comando não encontrado no PATH.".to_owned());
+                return Err("rustup is installed but its command was not found in PATH.".to_owned());
             }
             let toolchains = output("rustup", &["toolchain", "list"])?;
             if !toolchains.contains("(default)") {
-                println!("Configurando a toolchain Rust estável para compilar o paru.");
+                println!("Configuring the stable Rust toolchain to build paru.");
                 run("rustup", &["default", "stable"], None)?;
             }
         }
         if self.command_path("cargo").is_none() {
-            return Err("cargo não encontrado após preparar Rust.".to_owned());
+            return Err("cargo was not found after preparing Rust.".to_owned());
         }
 
-        println!("\n==> Baixando o PKGBUILD do paru");
+        println!("\n==> Downloading the paru PKGBUILD");
         let temporary = TempBuildDir::new()?;
         let repo = temporary.path.join("paru");
         let repo_text = repo.to_string_lossy();
@@ -110,22 +108,22 @@ impl LinuxAur {
         )?;
         let pkgbuild = repo.join("PKGBUILD");
         if !pkgbuild.is_file() {
-            return Err("O repositório clonado não contém PKGBUILD.".to_owned());
+            return Err("The cloned repository does not contain PKGBUILD.".to_owned());
         }
-        println!("\nArquivos recebidos da AUR:");
+        println!("\nFiles received from AUR:");
         run("git", &["ls-files"], Some(&repo))?;
-        println!("\nPKGBUILD recebido:");
-        let contents = fs::read(&pkgbuild)
-            .map_err(|error| format!("não foi possível ler PKGBUILD: {error}"))?;
+        println!("\nReceived PKGBUILD:");
+        let contents =
+            fs::read(&pkgbuild).map_err(|error| format!("could not read PKGBUILD: {error}"))?;
         io::stdout()
             .write_all(&contents)
-            .map_err(|error| format!("não foi possível mostrar PKGBUILD: {error}"))?;
-        println!("\nDemais arquivos recebidos: {}", repo.display());
+            .map_err(|error| format!("could not display PKGBUILD: {error}"))?;
+        println!("\nOther downloaded files: {}", repo.display());
 
-        println!("\n==> Compilando e instalando o paru");
+        println!("\n==> Building and installing paru");
         run("makepkg", &["-si", "--noconfirm"], Some(&repo))?;
         if self.command_path("paru").is_none() {
-            return Err("makepkg terminou, mas paru não foi encontrado no PATH.".to_owned());
+            return Err("makepkg finished, but paru was not found in PATH.".to_owned());
         }
         Ok(())
     }
@@ -140,12 +138,12 @@ fn run(name: &str, args: &[&str], cwd: Option<&Path>) -> Result<(), String> {
     }
     let status = command
         .status()
-        .map_err(|error| format!("não foi possível executar {name}: {error}"))?;
+        .map_err(|error| format!("could not run {name}: {error}"))?;
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "{name} falhou (código {}).",
+            "{name} failed (exit code {}).",
             status.code().unwrap_or(1)
         ))
     }
@@ -155,14 +153,14 @@ fn output(name: &str, args: &[&str]) -> Result<String, String> {
     let output = Command::new(name)
         .args(args)
         .output()
-        .map_err(|error| format!("não foi possível executar {name}: {error}"))?;
+        .map_err(|error| format!("could not run {name}: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "{name} falhou (código {}).",
+            "{name} failed (exit code {}).",
             output.status.code().unwrap_or(1)
         ));
     }
-    String::from_utf8(output.stdout).map_err(|_| format!("saída inválida de {name}"))
+    String::from_utf8(output.stdout).map_err(|_| format!("invalid output from {name}"))
 }
 
 struct TempBuildDir {
@@ -184,23 +182,18 @@ impl TempBuildDir {
                 Ok(()) => return Ok(Self { path }),
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(format!(
-                        "não foi possível criar diretório temporário: {error}"
-                    ));
+                    return Err(format!("could not create temporary directory: {error}"));
                 }
             }
         }
-        Err("não foi possível reservar um diretório temporário.".to_owned())
+        Err("could not reserve a temporary directory.".to_owned())
     }
 }
 
 impl Drop for TempBuildDir {
     fn drop(&mut self) {
         if let Err(error) = fs::remove_dir_all(&self.path) {
-            eprintln!(
-                "Aviso: não foi possível remover {}: {error}",
-                self.path.display()
-            );
+            eprintln!("Warning: could not remove {}: {error}", self.path.display());
         }
     }
 }

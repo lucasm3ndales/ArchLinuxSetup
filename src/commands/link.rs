@@ -17,17 +17,17 @@ fn parse_args(args: &[OsString]) -> Result<Mode, String> {
         [option] if option == "--dry-run" => Ok(Mode::DryRun),
         [option] if option == "-h" || option == "--help" => Ok(Mode::Help),
         [option] => Err(format!(
-            "opção desconhecida em link: {}",
+            "unknown option for link: {}",
             option.to_string_lossy()
         )),
-        _ => Err("link não aceita argumentos extras".to_owned()),
+        _ => Err("link does not accept extra arguments".to_owned()),
     }
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup link [--dry-run]");
-    println!("Cria o link para o binário Rust em ~/.local/bin e configura o PATH do Bash ou Zsh.");
-    println!("Compile antes com cargo build --release.");
+    println!("Usage: archsetup link [--dry-run]");
+    println!("Links the Rust binary in ~/.local/bin and configures PATH for Bash or Zsh.");
+    println!("Build first with cargo build --release.");
     0
 }
 
@@ -35,7 +35,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     let mode = match parse_args(args) {
         Ok(mode) => mode,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             return 2;
         }
     };
@@ -45,7 +45,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     match link_command(root, mode == Mode::DryRun) {
         Ok(()) => 0,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             1
         }
     }
@@ -53,53 +53,53 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
 
 fn link_command(root: &Path, dry_run: bool) -> Result<(), String> {
     if system::effective_uid()? == 0 {
-        return Err("execute como usuário comum, sem sudo".to_owned());
+        return Err("run as a regular user, without sudo".to_owned());
     }
     let home = std::env::var_os("HOME")
         .filter(|home| !home.is_empty())
         .map(PathBuf::from)
-        .ok_or_else(|| "HOME não está definido".to_owned())?;
+        .ok_or_else(|| "HOME is not set".to_owned())?;
     let shell = std::env::var_os("SHELL").unwrap_or_else(|| OsString::from("/bin/bash"));
     let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from);
     let fs = FileSystem;
     let plan = link::plan(&fs, root, &home, &shell, state_home.as_deref())?;
 
-    println!("==> Criando o comando archsetup");
-    println!("Origem: {}", plan.source.display());
-    println!("Destino: {}", plan.target.display());
+    println!("==> Creating the archsetup command");
+    println!("Source: {}", plan.source.display());
+    println!("Destination: {}", plan.target.display());
     if plan.append_path {
         println!(
-            "PATH persistente: {}",
-            plan.rc.as_ref().expect("rc definido").display()
+            "Persistent PATH entry: {}",
+            plan.rc.as_ref().expect("rc is set").display()
         );
     }
     if dry_run {
-        println!("Prévia concluída. Nenhuma alteração realizada.");
+        println!("Preview complete. No changes made.");
         return Ok(());
     }
     fs.apply(&plan)?;
     if plan.create_link {
         if plan.replace_legacy_link {
-            println!("Link antigo atualizado para o binário Rust.");
+            println!("Old link updated to point to the Rust binary.");
         } else {
-            println!("Comando criado.");
+            println!("Command created.");
         }
     } else {
-        println!("O comando já aponta para este projeto.");
+        println!("The command already points to this project.");
     }
     if let Some(rc) = &plan.rc {
         if plan.append_path {
             println!(
-                "PATH configurado em {}. Abra um novo terminal para usar archsetup.",
+                "PATH configured in {}. Open a new terminal to use archsetup.",
                 rc.display()
             );
         } else {
-            println!("PATH já configurado em {}.", rc.display());
+            println!("PATH is already configured in {}.", rc.display());
         }
     } else {
-        println!("Inclua ~/.local/bin no PATH do seu shell para usar archsetup como comando.");
+        println!("Add ~/.local/bin to your shell PATH to use archsetup as a command.");
     }
-    println!("Concluído: comando archsetup disponível a partir deste repositório.");
+    println!("Complete: archsetup command available from this repository.");
     Ok(())
 }
 

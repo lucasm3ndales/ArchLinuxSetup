@@ -11,12 +11,11 @@ impl LinuxDesktop {
     pub(super) fn panel_plan(&self) -> Result<PanelPlan, String> {
         let values =
             capture("xfconf-query", &["-c", "xfce4-panel", "-p", "/panels"]).map_err(|_| {
-                "O painel do Xfce ainda não possui configuração. Abra uma sessão completa primeiro."
-                    .to_owned()
+                "The Xfce panel has no configuration yet. Start a full session first.".to_owned()
             })?;
         let ids = parse_ids(&values);
         if ids.is_empty() {
-            return Err("Nenhum painel existente foi encontrado.".to_owned());
+            return Err("No existing panel was found.".to_owned());
         }
         let mut panels = Vec::new();
         for id in ids {
@@ -71,10 +70,10 @@ impl LinuxDesktop {
 
     pub(super) fn configure_xfce(&self) -> Result<(), String> {
         let plan = self.panel_plan()?;
-        println!("\n==> Salvando configuração atual");
+        println!("\n==> Saving current configuration");
         let backup = self.backup_xfce()?;
-        println!("Configuração anterior salva em {}", backup.display());
-        println!("\n==> Configurando tema e painéis");
+        println!("Previous configuration saved to {}", backup.display());
+        println!("\n==> Configuring theme and panels");
         let old_keylocks = self.home.join(".local/bin/archlinuxsetup-keylocks");
         if fs::symlink_metadata(&old_keylocks).is_ok() {
             let target = backup.join("archlinuxsetup-keylocks");
@@ -86,16 +85,11 @@ impl LinuxDesktop {
                     &target.to_string_lossy(),
                 ],
             )?;
-            println!("Indicador antigo preservado em {}", target.display());
+            println!("Old indicator preserved at {}", target.display());
         }
         set_property("xsettings", "/Net/ThemeName", "string", "Nordic")?;
         set_property("xsettings", "/Net/IconThemeName", "string", "zafiro-dark")?;
-        set_property(
-            "xsettings",
-            "/Gtk/CursorThemeName",
-            "string",
-            "Hackneyed",
-        )?;
+        set_property("xsettings", "/Gtk/CursorThemeName", "string", "Hackneyed")?;
         set_property("xsettings", "/Gtk/CursorThemeSize", "int", "24")?;
         set_property("xsettings", "/Gtk/FontName", "string", "Inter 10")?;
         set_property("xfwm4", "/general/theme", "string", "Nordic")?;
@@ -247,10 +241,10 @@ impl LinuxDesktop {
             .collect::<Vec<_>>();
         set_array("xfce4-panel", &format!("{panel}/plugin-ids"), "int", &ids)?;
         run("xfce4-panel", &["--restart"])?;
-        println!("\n==> Ativando a tecla Super no Xfce");
+        println!("\n==> Enabling the Super key in Xfce");
         self.configure_ksuperkey(&backup)?;
         println!(
-            "\nConcluído: painel único, busca, tarefas do espaço atual, relógio com data e indicadores configurados."
+            "\nComplete: single panel, search, current-workspace tasks, date/time clock and indicators configured."
         );
         Ok(())
     }
@@ -258,19 +252,15 @@ impl LinuxDesktop {
     fn backup_xfce(&self) -> Result<PathBuf, String> {
         let base = self.state_dir.join("backups");
         fs::create_dir_all(&base)
-            .map_err(|error| format!("não foi possível criar {}: {error}", base.display()))?;
+            .map_err(|error| format!("could not create {}: {error}", base.display()))?;
         let date = capture("date", &["+%Y%m%d-%H%M%S"])?.trim().to_owned();
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| error.to_string())?
             .subsec_nanos();
         let backup = base.join(format!("xfce-{date}-{}-{nanos:09}", std::process::id()));
-        fs::create_dir(&backup).map_err(|error| {
-            format!(
-                "não foi possível criar backup {}: {error}",
-                backup.display()
-            )
-        })?;
+        fs::create_dir(&backup)
+            .map_err(|error| format!("could not create backup {}: {error}", backup.display()))?;
         for channel in [
             "xsettings",
             "xfwm4",
@@ -279,15 +269,14 @@ impl LinuxDesktop {
         ] {
             let listing = capture("xfconf-query", &["-c", channel, "-lv"]).unwrap_or_default();
             fs::write(backup.join(format!("{channel}.txt")), listing)
-                .map_err(|error| format!("não foi possível registrar {channel}: {error}"))?;
+                .map_err(|error| format!("could not record {channel}: {error}"))?;
             let source = self
                 .config_dir
                 .join("xfce4/xfconf/xfce-perchannel-xml")
                 .join(format!("{channel}.xml"));
             if source.is_file() {
-                fs::copy(&source, backup.join(format!("{channel}.xml"))).map_err(|error| {
-                    format!("não foi possível salvar {}: {error}", source.display())
-                })?;
+                fs::copy(&source, backup.join(format!("{channel}.xml")))
+                    .map_err(|error| format!("could not save {}: {error}", source.display()))?;
             }
         }
         for (source, backup_name, rendered) in [
@@ -304,11 +293,10 @@ impl LinuxDesktop {
         ] {
             if source.is_file() {
                 let current = fs::read_to_string(&source)
-                    .map_err(|error| format!("não foi possível ler {}: {error}", source.display()))?;
+                    .map_err(|error| format!("could not read {}: {error}", source.display()))?;
                 if rendered(&current) != current {
-                    fs::copy(&source, backup.join(backup_name)).map_err(|error| {
-                        format!("não foi possível salvar {}: {error}", source.display())
-                    })?;
+                    fs::copy(&source, backup.join(backup_name))
+                        .map_err(|error| format!("could not save {}: {error}", source.display()))?;
                 }
             }
         }
@@ -330,23 +318,22 @@ impl LinuxDesktop {
         ] {
             let existed = target.is_file();
             let current = if existed {
-                fs::read_to_string(&target).map_err(|error| {
-                    format!("não foi possível ler {}: {error}", target.display())
-                })?
+                fs::read_to_string(&target)
+                    .map_err(|error| format!("could not read {}: {error}", target.display()))?
             } else {
                 String::new()
             };
             let updated = rendered(&current);
             if updated != current {
-                fs::create_dir_all(target.parent().ok_or("caminho de cursor inválido")?)
-                    .map_err(|error| format!("não foi possível criar diretório: {error}"))?;
+                fs::create_dir_all(target.parent().ok_or("invalid cursor path")?)
+                    .map_err(|error| format!("could not create directory: {error}"))?;
                 if !existed {
                     fs::write(backup.join(created_name), &updated).map_err(|error| {
-                        format!("não foi possível registrar {}: {error}", target.display())
+                        format!("could not record {}: {error}", target.display())
                     })?;
                 }
                 fs::write(&target, &updated).map_err(|error| {
-                    format!("não foi possível configurar {}: {error}", target.display())
+                    format!("could not configure {}: {error}", target.display())
                 })?;
             }
         }
@@ -356,21 +343,20 @@ impl LinuxDesktop {
     fn configure_ksuperkey(&self, backup: &Path) -> Result<(), String> {
         let target = self.config_dir.join("autostart/ksuperkey.desktop");
         if fs::symlink_metadata(&target).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-            return Err(format!("Link simbólico inesperado: {}", target.display()));
+            return Err(format!("Unexpected symbolic link: {}", target.display()));
         }
         let current = fs::read_to_string(&target).ok();
         if current.as_deref() != Some(desktop::AUTOSTART) {
             fs::create_dir_all(target.parent().unwrap()).map_err(|error| error.to_string())?;
             if target.is_file() {
                 fs::copy(&target, backup.join("ksuperkey.desktop"))
-                    .map_err(|error| format!("não foi possível salvar autostart: {error}"))?;
+                    .map_err(|error| format!("could not save autostart: {error}"))?;
             }
             fs::write(&target, desktop::AUTOSTART)
-                .map_err(|error| format!("não foi possível configurar autostart: {error}"))?;
+                .map_err(|error| format!("could not configure autostart: {error}"))?;
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).map_err(|error| {
-                format!("não foi possível ajustar permissões de autostart: {error}")
-            })?;
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o644))
+                .map_err(|error| format!("could not set autostart permissions: {error}"))?;
         }
         let uid = system::effective_uid()?.to_string();
         if !success("pgrep", &["-u", &uid, "-x", "ksuperkey"])? {
@@ -379,7 +365,7 @@ impl LinuxDesktop {
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()
-                .map_err(|error| format!("não foi possível iniciar ksuperkey: {error}"))?;
+                .map_err(|error| format!("could not start ksuperkey: {error}"))?;
         }
         Ok(())
     }
@@ -427,11 +413,11 @@ fn set_array(channel: &str, property: &str, kind: &str, values: &[String]) -> Re
     let status = Command::new("xfconf-query")
         .args(&args)
         .status()
-        .map_err(|error| format!("não foi possível executar xfconf-query: {error}"))?;
+        .map_err(|error| format!("could not run xfconf-query: {error}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err("xfconf-query falhou ao configurar array".to_owned())
+        Err("xfconf-query failed to configure the array".to_owned())
     }
 }
 

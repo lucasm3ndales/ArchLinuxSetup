@@ -6,17 +6,17 @@ use std::process::Command;
 
 pub fn effective_uid() -> Result<u32, String> {
     let status = fs::read_to_string("/proc/self/status")
-        .map_err(|error| format!("não foi possível identificar o usuário: {error}"))?;
+        .map_err(|error| format!("could not identify the user: {error}"))?;
     let uid_line = status
         .lines()
         .find(|line| line.starts_with("Uid:"))
-        .ok_or_else(|| "UID não encontrado em /proc/self/status".to_owned())?;
+        .ok_or_else(|| "UID not found in /proc/self/status".to_owned())?;
     uid_line
         .split_whitespace()
         .nth(2)
-        .ok_or_else(|| "UID efetivo indisponível".to_owned())?
+        .ok_or_else(|| "effective UID unavailable".to_owned())?
         .parse::<u32>()
-        .map_err(|error| format!("UID efetivo inválido: {error}"))
+        .map_err(|error| format!("invalid effective UID: {error}"))
 }
 
 pub fn command_exists(name: &str) -> bool {
@@ -62,12 +62,12 @@ pub fn read_trimmed(path: &Path) -> Option<String> {
 
 pub fn run_optional(name: &str, args: &[&str]) {
     if !command_exists(name) {
-        println!("Comando indisponível: {name}");
+        println!("Command unavailable: {name}");
         return;
     }
     let _ = io::stdout().flush();
     match Command::new(name).args(args).status() {
         Ok(status) if status.success() => {}
-        _ => println!("Não foi possível executar: {name}"),
+        _ => println!("Could not run: {name}"),
     }
 }

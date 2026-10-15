@@ -44,21 +44,16 @@ impl Report {
 
 pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>) -> Report {
     let mut report = Report::default();
-    report.info("==> Checagem do sistema");
-    report.info(format!(
-        "Somente leitura. Perfil: {}",
-        profile.unwrap_or("nenhum")
-    ));
+    report.info("==> System check");
+    report.info(format!("Read-only. Profile: {}", profile.unwrap_or("none")));
 
     match system.effective_uid() {
-        Ok(0) => report.failure("[FALHA] Execute como usuário comum, sem sudo."),
+        Ok(0) => report.failure("[FAIL] Run as a regular user, without sudo."),
         Ok(_) => {
-            report.info("[OK] Usuário comum");
+            report.info("[OK] Regular user");
             report.ordinary_user = true;
         }
-        Err(error) => report.failure(format!(
-            "[FALHA] Não foi possível identificar o usuário: {error}"
-        )),
+        Err(error) => report.failure(format!("[FAIL] Could not identify the user: {error}")),
     }
 
     let os_id = system
@@ -67,15 +62,15 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
     if os_id.as_deref() == Some("arch") {
         report.info("[OK] Arch Linux");
     } else {
-        report.failure("[FALHA] Esta máquina não informa Arch Linux em /etc/os-release.");
+        report.failure("[FAIL] /etc/os-release does not identify this machine as Arch Linux.");
     }
 
     if let Some(profile) = profile {
         match check_profile(system, root, profile) {
-            Ok(()) => report.info(format!("[OK] Hardware compatível com {profile}")),
+            Ok(()) => report.info(format!("[OK] Hardware matches {profile}")),
             Err(error) => {
-                report.error(format!("Erro: {error}"));
-                report.failure("[FALHA] Perfil incompatível com este equipamento.");
+                report.error(format!("Error: {error}"));
+                report.failure("[FAIL] Profile does not match this machine.");
             }
         }
     } else if let (Some(vendor), Some(product)) = (
@@ -88,52 +83,58 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
                 for name in names.into_iter().filter(|name| name != "generic") {
                     if let Ok(candidate) = read_profile(system, root, &name) {
                         if candidate.matches(vendor.trim(), product.trim()) {
-                            report.info(format!("[INFO] Perfil compatível: {name}. Use --profile {name}."));
+                            report.info(format!(
+                                "[INFO] Matching profile: {name}. Use --profile {name}."
+                            ));
                             found = true;
                         }
                     }
                 }
                 if !found {
-                    report.info("[INFO] Nenhum perfil específico encontrado. Use --profile generic para declarar essa escolha.");
+                    report.info("[INFO] No device-specific profile found. Use --profile generic to select the generic profile.");
                 }
             }
-            Err(error) => report.info(format!("[AVISO] Perfis não verificados: {error}")),
+            Err(error) => report.info(format!("[WARN] Could not check profiles: {error}")),
         }
     } else {
-        report.info("[INFO] DMI indisponível; use --profile generic se não houver perfil específico.");
+        report.info("[INFO] DMI is unavailable; use --profile generic if no device-specific profile applies.");
     }
 
     if system.command_exists("sudo") {
-        report.info("[OK] sudo disponível");
+        report.info("[OK] sudo available");
     } else {
-        report.info("[AVISO] sudo não encontrado; instalação de pacotes exige sudo.");
+        report.info("[WARN] sudo not found; package installation requires sudo.");
     }
     if system.command_exists("pacman-conf") {
         let multilib = system
             .command_output("pacman-conf", &["--repo-list"])
             .is_some_and(|output| output.lines().any(|line| line == "multilib"));
         if multilib {
-            report.info("[OK] [multilib] habilitado para gaming");
+            report.info("[OK] [multilib] enabled for gaming");
         } else {
-            report.info("[AVISO] [multilib] desabilitado; gaming não poderá ser instalado.");
+            report.info("[WARN] [multilib] disabled; gaming packages cannot be installed.");
         }
     } else {
-        report.info("[AVISO] pacman-conf indisponível; [multilib] não verificado.");
+        report.info("[WARN] pacman-conf unavailable; [multilib] not checked.");
     }
 
     if system.command_exists("findmnt") {
         let root_fs = mount_value(system, "/", "FSTYPE");
         let root_options = mount_value(system, "/", "OPTIONS");
         if root_fs.as_deref() == Some("btrfs") {
-            report.info("[OK] Raiz usa Btrfs");
+            report.info("[OK] Root uses Btrfs");
             if root_options
                 .as_deref()
                 .is_some_and(|options| has_subvolume(options, "@"))
             {
-                report.info("[INFO] Subvolume raiz: @; confirme o método de restauração no layout atual.");
+                report.info(
+                    "[INFO] Root subvolume: @; verify the restore procedure for this layout.",
+                );
             }
         } else {
-            report.info("[AVISO] Raiz não foi identificada como Btrfs; Snapper Btrfs não foi validado.");
+            report.info(
+                "[WARN] Root was not identified as Btrfs; Btrfs snapshots were not verified.",
+            );
         }
         let home_fs = mount_value(system, "/home", "FSTYPE");
         let home_options = mount_value(system, "/home", "OPTIONS");
@@ -142,37 +143,47 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
                 .as_deref()
                 .is_some_and(|options| has_subvolume(options, "@home"))
             {
-                report.info("[INFO] /home usa subvolume Btrfs @home, fora dos snapshots da raiz.");
+                report.info("[INFO] /home uses the @home Btrfs subvolume, outside root snapshots.");
             } else {
-                report.info("[INFO] /home é um ponto de montagem Btrfs separado; confira sua configuração no Snapper.");
+                report.info(
+                    "[INFO] /home is a separate Btrfs mount; check its Snapper configuration.",
+                );
             }
         }
         let boot_fs = mount_value(system, "/boot", "FSTYPE");
         let efi_fs = mount_value(system, "/boot/efi", "FSTYPE")
             .or_else(|| mount_value(system, "/efi", "FSTYPE"));
         if let Some(boot_fs) = boot_fs {
-            report.info(format!("[AVISO] /boot é uma partição separada ({boot_fs}); snapshots Btrfs da raiz não incluem kernels ou UKIs nela."));
+            report.info(format!("[WARN] /boot is a separate partition ({boot_fs}); root Btrfs snapshots do not include kernels or UKIs stored there."));
         } else if let Some(efi_fs) = efi_fs {
             report.info(format!(
-                "[AVISO] Partição EFI separada ({efi_fs}); snapshots da raiz não incluem UKIs armazenados nela."
+                "[WARN] Separate EFI partition ({efi_fs}); root snapshots do not include UKIs stored there."
             ));
         } else {
-            report.info("[AVISO] Partição EFI não identificada em /boot/efi ou /efi.");
+            report.info("[WARN] EFI partition not found at /boot/efi or /efi.");
         }
     } else {
-        report.info("[AVISO] findmnt indisponível; layout Btrfs não verificado.");
+        report.info("[WARN] findmnt unavailable; Btrfs layout not checked.");
     }
 
     if system.command_exists("pacman") {
         if system.package_installed("snapper") {
-            report.info("[OK] Snapper instalado; confirme as configurações e crie um snapshot de teste.");
+            report.info(
+                "[OK] Snapper installed; verify its configurations and create a test snapshot.",
+            );
         } else {
-            report.info("[AVISO] Snapper não instalado; snapshots da raiz não foram confirmados.");
+            report.info("[WARN] Snapper not installed; root snapshots were not confirmed.");
         }
-        if system.command_exists("bootctl") {
-            report.info("[INFO] Confira o bootloader ativo com bootctl status; systemd-boot não cria entradas para snapshots do Snapper por conta própria.");
+        if system.read_text(Path::new("/boot/limine.conf")).is_some()
+            || system
+                .read_text(Path::new("/boot/EFI/BOOT/limine.conf"))
+                .is_some()
+        {
+            report.info("[INFO] Limine configuration found. Verify that snapshot entries and boot files are synchronized before relying on rollback.");
+        } else if system.package_installed("limine") {
+            report.info("[WARN] Limine is installed, but its configuration could not be read from the usual /boot locations. Check the active path and permissions before relying on rollback.");
         } else {
-            report.info("[AVISO] bootctl indisponível; confirme o bootloader e o caminho de recuperação separadamente.");
+            report.info("[WARN] Bootloader configuration could not be verified. Check the active bootloader and recovery path.");
         }
         if system.package_installed("snapper")
             && system
@@ -183,7 +194,7 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
                         .any(|arg| arg.starts_with("rootflags=subvol="))
                 })
         {
-            report.info("[AVISO] O boot fixa o subvolume raiz com rootflags=subvol=; snapper rollback sozinho pode não mudar a raiz iniciada.");
+            report.info("[WARN] Boot pins the root subvolume with rootflags=subvol=; snapper rollback alone may not change the booted root.");
         }
     }
 
@@ -197,15 +208,14 @@ pub fn inspect(system: &impl SystemInspector, root: &Path, profile: Option<&str>
         xfce_session_installed: system.package_installed("xfce4-session"),
         xfce_panel_installed: system.package_installed("xfce4-panel"),
     }) {
-        Ok(()) => report.info("[OK] Xfce instalado e sessão X11 do Xfce ativa"),
-        Err(error) => report.info(format!("[AVISO] Desktop: {error}")),
+        Ok(()) => report.info("[OK] Xfce installed and Xfce X11 session active"),
+        Err(error) => report.info(format!("[WARN] Desktop: {error}")),
     }
 
     if report.failed {
-        report
-            .info("Checagem concluída com falhas de compatibilidade. Nenhuma alteração realizada.");
+        report.info("Check completed with compatibility failures. No changes made.");
     } else {
-        report.info("Checagem concluída. Revise os avisos antes de aplicar mudanças. Nenhuma alteração realizada.");
+        report.info("Check completed. Review warnings before applying changes. No changes made.");
     }
     report
 }
@@ -218,28 +228,37 @@ fn mount_value(system: &impl SystemInspector, mountpoint: &str, field: &str) -> 
 
 pub fn check_profile(system: &impl SystemInspector, root: &Path, name: &str) -> Result<(), String> {
     let profile = read_profile(system, root, name)?;
-    if name == "generic" { return Ok(()); }
+    if name == "generic" {
+        return Ok(());
+    }
     let vendor = system
         .read_text(Path::new("/sys/class/dmi/id/sys_vendor"))
         .map(|value| value.trim().to_owned())
-        .ok_or_else(|| "não foi possível ler o fabricante desta máquina".to_owned())?;
+        .ok_or_else(|| "could not read this machine's vendor".to_owned())?;
     let product = system
         .read_text(Path::new("/sys/class/dmi/id/product_name"))
         .map(|value| value.trim().to_owned())
-        .ok_or_else(|| "não foi possível ler o modelo desta máquina".to_owned())?;
+        .ok_or_else(|| "could not read this machine's model".to_owned())?;
     if profile.matches(&vendor, &product) {
         Ok(())
     } else {
         Err(format!(
-            "o perfil {name} exige {} / {}; esta máquina informa {vendor} / {product}",
-            profile.match_vendor.as_deref().unwrap_or("?"), profile.match_dmi.as_deref().unwrap_or("?")
+            "profile {name} requires {} / {}; this machine reports {vendor} / {product}",
+            profile.match_vendor.as_deref().unwrap_or("?"),
+            profile.match_dmi.as_deref().unwrap_or("?")
         ))
     }
 }
 
-pub fn read_profile(system: &impl SystemInspector, root: &Path, name: &str) -> Result<Profile, String> {
+pub fn read_profile(
+    system: &impl SystemInspector,
+    root: &Path,
+    name: &str,
+) -> Result<Profile, String> {
     let file = root.join("profiles").join(name).join("profile.toml");
-    let content = system.read_text(&file).ok_or_else(|| format!("perfil sem profile.toml: {name}"))?;
+    let content = system
+        .read_text(&file)
+        .ok_or_else(|| format!("profile {name} has no profile.toml"))?;
     profile::parse(name, &content)
 }
 
@@ -319,7 +338,10 @@ mod tests {
                 .insert(format!("findmnt -rnM {mount} -o {field}"), value.into());
         }
         fake.packages.insert("snapper".into());
-        fake.commands.insert("bootctl".into());
+        fake.files.insert(
+            "/boot/EFI/BOOT/limine.conf".into(),
+            "// Arch Linux\n".into(),
+        );
         fake.files.insert(
             "/proc/cmdline".into(),
             "root=UUID=example rootflags=subvol=@ rw".into(),
@@ -327,13 +349,18 @@ mod tests {
         let report = inspect(&fake, Path::new("/project"), None);
         assert!(!report.failed);
         assert!(report.ordinary_user);
-        assert!(report.messages.contains(&Message::Info(
-            "[OK] Raiz usa Btrfs".into()
-        )));
-        assert!(report.messages.contains(&Message::Info(
-            "[OK] [multilib] habilitado para gaming".into()
-        )));
-        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("snapper rollback sozinho"))));
+        assert!(
+            report
+                .messages
+                .contains(&Message::Info("[OK] Root uses Btrfs".into()))
+        );
+        assert!(
+            report
+                .messages
+                .contains(&Message::Info("[OK] [multilib] enabled for gaming".into()))
+        );
+        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("Limine configuration found"))));
+        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("snapper rollback alone"))));
     }
 
     #[test]
@@ -344,7 +371,7 @@ mod tests {
             .insert("/etc/os-release".into(), "ID=arch\n".into());
         let absent = inspect(&fake, Path::new("/project"), None);
         assert!(!absent.failed);
-        assert!(absent.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("[AVISO] Desktop: Xfce não está instalado"))));
+        assert!(absent.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("[WARN] Desktop: Xfce is not installed"))));
         fake.packages
             .extend(["xfce4-session", "xfce4-panel"].map(str::to_owned));
         fake.environment
@@ -354,8 +381,20 @@ mod tests {
         fake.environment.insert("DISPLAY".into(), ":0".into());
         let ready = inspect(&fake, Path::new("/project"), None);
         assert!(ready.messages.contains(&Message::Info(
-            "[OK] Xfce instalado e sessão X11 do Xfce ativa".into()
+            "[OK] Xfce installed and Xfce X11 session active".into()
         )));
+    }
+
+    #[test]
+    fn does_not_claim_limine_config_is_missing_when_boot_is_unreadable() {
+        let mut fake = FakeInspector::default();
+        fake.uid = 1000;
+        fake.files
+            .insert("/etc/os-release".into(), "ID=arch\n".into());
+        fake.commands.insert("pacman".into());
+        fake.packages.insert("limine".into());
+        let report = inspect(&fake, Path::new("/project"), None);
+        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("configuration could not be read"))));
     }
 
     #[test]
@@ -375,7 +414,7 @@ mod tests {
         let report = inspect(&fake, Path::new("/project"), Some("acer"));
         assert!(report.failed);
         assert!(report.messages.iter().any(
-            |message| matches!(message, Message::Error(text) if text.contains("perfil acer exige"))
+            |message| matches!(message, Message::Error(text) if text.contains("profile acer requires"))
         ));
     }
 
@@ -383,9 +422,14 @@ mod tests {
     fn suggests_matching_profile_without_selecting_it() {
         let mut fake = FakeInspector::default();
         fake.uid = 1000;
-        fake.files.insert("/etc/os-release".into(), "ID=arch\n".into());
-        fake.files.insert("/sys/class/dmi/id/sys_vendor".into(), "Acer Inc.\n".into());
-        fake.files.insert("/sys/class/dmi/id/product_name".into(), "Aspire VX5-591G\n".into());
+        fake.files
+            .insert("/etc/os-release".into(), "ID=arch\n".into());
+        fake.files
+            .insert("/sys/class/dmi/id/sys_vendor".into(), "Acer Inc.\n".into());
+        fake.files.insert(
+            "/sys/class/dmi/id/product_name".into(),
+            "Aspire VX5-591G\n".into(),
+        );
         fake.files.insert(
             "/project/profiles/acer/profile.toml".into(),
             "name = \"acer\"\ndescription = \"Acer\"\nmatch_vendor = \"Acer\"\nmatch_dmi = \"VX5-591G\"\n".into(),
@@ -393,13 +437,18 @@ mod tests {
         fake.profiles = vec!["acer".into(), "generic".into()];
         let report = inspect(&fake, Path::new("/project"), None);
         assert!(!report.failed);
-        assert!(report.messages.iter().any(|message| matches!(message, Message::Info(text) if text.contains("Use --profile acer"))));
+        assert!(report.messages.iter().any(
+            |message| matches!(message, Message::Info(text) if text.contains("Use --profile acer"))
+        ));
     }
 
     #[test]
     fn accepts_generic_profile_without_dmi() {
         let mut fake = FakeInspector::default();
-        fake.files.insert("/project/profiles/generic/profile.toml".into(), "name = \"generic\"\ndescription = \"Sem extras\"\n".into());
+        fake.files.insert(
+            "/project/profiles/generic/profile.toml".into(),
+            "name = \"generic\"\ndescription = \"No extras\"\n".into(),
+        );
         assert!(check_profile(&fake, Path::new("/project"), "generic").is_ok());
     }
 

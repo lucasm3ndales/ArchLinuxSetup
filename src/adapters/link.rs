@@ -14,10 +14,10 @@ impl LinkReader for FileSystem {
         match fs::symlink_metadata(path) {
             Ok(metadata) if metadata.file_type().is_symlink() => fs::read_link(path)
                 .map(LinkState::Symlink)
-                .map_err(|error| format!("não foi possível ler {}: {error}", path.display())),
+                .map_err(|error| format!("could not read {}: {error}", path.display())),
             Ok(_) => Ok(LinkState::Occupied),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(LinkState::Missing),
-            Err(error) => Err(format!("não foi possível verificar o comando: {error}")),
+            Err(error) => Err(format!("could not verify the command: {error}")),
         }
     }
 
@@ -25,7 +25,7 @@ impl LinkReader for FileSystem {
         match fs::read(path) {
             Ok(content) => Ok(Some(content)),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(format!("não foi possível ler {}: {error}", path.display())),
+            Err(error) => Err(format!("could not read {}: {error}", path.display())),
         }
     }
 
@@ -33,10 +33,7 @@ impl LinkReader for FileSystem {
         match fs::metadata(path) {
             Ok(metadata) => Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(format!(
-                "não foi possível verificar {}: {error}",
-                path.display()
-            )),
+            Err(error) => Err(format!("could not verify {}: {error}", path.display())),
         }
     }
 }
@@ -46,16 +43,18 @@ impl FileSystem {
         if plan.create_link {
             if !self.executable(&plan.source)? {
                 return Err(format!(
-                    "binário Rust ausente em {}. Execute cargo build --release.",
+                    "Rust binary is missing at {}. Run cargo build --release.",
                     plan.source.display()
                 ));
             }
-            fs::create_dir_all(plan.target.parent().expect("target tem diretório pai"))
-                .map_err(|error| format!("não foi possível criar ~/.local/bin: {error}"))?;
+            fs::create_dir_all(plan.target.parent().expect("target has a parent directory"))
+                .map_err(|error| format!("could not create ~/.local/bin: {error}"))?;
             if plan.replace_legacy_link {
                 if self.link_state(&plan.target)? != LinkState::Symlink(plan.legacy_source.clone())
                 {
-                    return Err("o link antigo mudou após a prévia; execute novamente".to_owned());
+                    return Err(
+                        "the old link changed after the preview; run the command again".to_owned(),
+                    );
                 }
                 let temporary = plan.target.with_file_name(format!(
                     "archsetup.tmp-{}-{}",
@@ -66,19 +65,19 @@ impl FileSystem {
                         .as_nanos()
                 ));
                 symlink(&plan.source, &temporary)
-                    .map_err(|error| format!("não foi possível preparar o novo link: {error}"))?;
+                    .map_err(|error| format!("could not prepare the new link: {error}"))?;
                 if let Err(error) = fs::rename(&temporary, &plan.target) {
                     let _ = fs::remove_file(&temporary);
-                    return Err(format!("não foi possível atualizar o comando: {error}"));
+                    return Err(format!("could not update the command: {error}"));
                 }
             } else {
                 symlink(&plan.source, &plan.target)
-                    .map_err(|error| format!("não foi possível criar o comando: {error}"))?;
+                    .map_err(|error| format!("could not create the command: {error}"))?;
             }
         }
 
         if plan.append_path {
-            let rc = plan.rc.as_ref().expect("append_path exige rc");
+            let rc = plan.rc.as_ref().expect("append_path requires rc");
             if plan.backup_rc {
                 let suffix = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -94,17 +93,16 @@ impl FileSystem {
                 .create(true)
                 .append(true)
                 .open(rc)
-                .map_err(|error| format!("não foi possível abrir {}: {error}", rc.display()))?;
+                .map_err(|error| format!("could not open {}: {error}", rc.display()))?;
             writeln!(file, "\n{PATH_LINE}")
-                .map_err(|error| format!("não foi possível atualizar {}: {error}", rc.display()))?;
-            fs::create_dir_all(&plan.state_dir).map_err(|error| {
-                format!("não foi possível criar o diretório de estado: {error}")
-            })?;
+                .map_err(|error| format!("could not update {}: {error}", rc.display()))?;
+            fs::create_dir_all(&plan.state_dir)
+                .map_err(|error| format!("could not create the state directory: {error}"))?;
             fs::write(
                 plan.state_dir.join("path-rc"),
                 format!("{}\n", rc.display()),
             )
-            .map_err(|error| format!("não foi possível registrar o PATH: {error}"))?;
+            .map_err(|error| format!("could not record PATH: {error}"))?;
         }
         Ok(())
     }

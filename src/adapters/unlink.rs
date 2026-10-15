@@ -19,14 +19,14 @@ impl UnlinkReader for FileSystem {
     }
 
     fn historical_backups(&self, rc: &Path) -> Result<Vec<Vec<u8>>, String> {
-        let parent = rc.parent().ok_or("arquivo de shell sem diretório pai")?;
+        let parent = rc.parent().ok_or("shell file has no parent directory")?;
         let name = rc
             .file_name()
-            .ok_or("arquivo de shell sem nome")?
+            .ok_or("shell file has no name")?
             .to_string_lossy();
         let prefix = format!("{name}.archsetup.bak-");
         let entries = fs::read_dir(parent)
-            .map_err(|error| format!("não foi possível listar {}: {error}", parent.display()))?;
+            .map_err(|error| format!("could not list {}: {error}", parent.display()))?;
         let mut paths = Vec::new();
         for entry in entries {
             let entry = entry.map_err(|error| error.to_string())?;
@@ -39,7 +39,7 @@ impl UnlinkReader for FileSystem {
             .into_iter()
             .map(|path| {
                 fs::read(&path)
-                    .map_err(|error| format!("não foi possível ler {}: {error}", path.display()))
+                    .map_err(|error| format!("could not read {}: {error}", path.display()))
             })
             .collect()
     }
@@ -53,13 +53,15 @@ impl FileSystem {
             if state != LinkState::Symlink(plan.source.clone())
                 && state != LinkState::Symlink(plan.legacy_source.clone())
             {
-                return Err("o link do comando mudou após a prévia; execute novamente".to_owned());
+                return Err(
+                    "the command link changed after the preview; run the command again".to_owned(),
+                );
             }
         }
         if let (Some(rc), Some(original)) = (&plan.rc, &plan.original_rc) {
             if plan.updated_rc.is_some() && self.read_optional(rc)?.as_deref() != Some(original) {
                 return Err(format!(
-                    "{} mudou após a prévia; execute novamente",
+                    "{} changed after the preview; run the command again",
                     rc.display()
                 ));
             }
@@ -67,24 +69,20 @@ impl FileSystem {
 
         if let (Some(rc), Some(updated)) = (&plan.rc, &plan.updated_rc) {
             let backup = backup_path(&plan.backup_base, rc)?;
-            fs::create_dir_all(backup.parent().expect("backup tem diretório pai"))
-                .map_err(|error| format!("não foi possível criar diretório de backup: {error}"))?;
+            fs::create_dir_all(backup.parent().expect("backup has a parent directory"))
+                .map_err(|error| format!("could not create backup directory: {error}"))?;
             file_backup::copy(rc, &backup)?;
             let mut file = OpenOptions::new()
                 .write(true)
                 .truncate(true)
                 .open(rc)
-                .map_err(|error| format!("não foi possível abrir {}: {error}", rc.display()))?;
+                .map_err(|error| format!("could not open {}: {error}", rc.display()))?;
             file.write_all(updated)
-                .map_err(|error| format!("não foi possível atualizar {}: {error}", rc.display()))?;
+                .map_err(|error| format!("could not update {}: {error}", rc.display()))?;
         }
         if plan.remove_link {
-            fs::remove_file(&plan.target).map_err(|error| {
-                format!(
-                    "não foi possível remover {}: {error}",
-                    plan.target.display()
-                )
-            })?;
+            fs::remove_file(&plan.target)
+                .map_err(|error| format!("could not remove {}: {error}", plan.target.display()))?;
         }
         Ok(())
     }
@@ -95,7 +93,7 @@ fn backup_path(base: &Path, rc: &Path) -> Result<PathBuf, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|error| error.to_string())?
         .as_nanos();
-    let name = rc.file_name().ok_or("arquivo de shell sem nome")?;
+    let name = rc.file_name().ok_or("shell file has no name")?;
     Ok(base
         .join(format!("unlink-{suffix}-{}", std::process::id()))
         .join(name))

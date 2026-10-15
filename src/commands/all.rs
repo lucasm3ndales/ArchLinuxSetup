@@ -22,15 +22,15 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
             "--dry-run" => options.dry_run = true,
             "--profile" => {
                 index += 1;
-                let name = args.get(index).ok_or("falta o nome após --profile")?;
+                let name = args.get(index).ok_or("missing name after --profile")?;
                 let name = name.to_string_lossy();
                 if !project::valid_profile_name(&name) {
-                    return Err(format!("nome de perfil inválido: {name}"));
+                    return Err(format!("invalid profile name: {name}"));
                 }
                 options.profile = Some(name.into_owned());
             }
             "-h" | "--help" => return Ok(None),
-            other => return Err(format!("opção desconhecida em all: {other}")),
+            other => return Err(format!("unknown option for all: {other}")),
         }
         index += 1;
     }
@@ -38,10 +38,10 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup all [--profile NOME] [--dry-run]");
-    println!("Executa aur, pkg e desktop (atualmente só Xfce) nessa ordem.");
-    println!("Requer Xfce instalado e uma sessão X11 do Xfce antes de começar.");
-    println!("Para no primeiro erro.");
+    println!("Usage: archsetup all [--profile NAME] [--dry-run]");
+    println!("Runs aur, pkg and desktop (currently Xfce only), in that order.");
+    println!("Requires Xfce and an active Xfce X11 session before starting.");
+    println!("Stops at the first error.");
     0
 }
 
@@ -50,66 +50,64 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         Ok(Some(options)) => options,
         Ok(None) => return help(),
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 2;
         }
     };
     if let Some(profile) = &options.profile {
         if !root.join("profiles").join(profile).is_dir() {
-            eprintln!("Erro: perfil inexistente: {profile}");
+            eprintln!("Error: unknown profile: {profile}");
             return 2;
         }
     }
     let desktop_system = match LinuxDesktop::new(root) {
         Ok(system) => system,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 1;
         }
     };
     if let Err(error) = desktop_system.check_xfce_environment() {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     if !options.dry_run {
         let report = doctor::inspect(&LinuxInspector, root, options.profile.as_deref());
         if report.failed {
-            eprintln!(
-                "Erro: checagem inicial falhou. Execute archsetup doctor para ver os detalhes."
-            );
+            eprintln!("Error: initial check failed. Run archsetup doctor for details.");
             return 1;
         }
     }
 
     println!(
-        "==> {} completa do ArchSetup",
+        "==> Full ArchSetup {}",
         if options.dry_run {
-            "Prévia"
+            "Preview"
         } else {
-            "Configuração"
+            "Configuration"
         }
     );
     for (index, command) in [Command::Aur, Command::Pkg, Command::Desktop]
         .into_iter()
         .enumerate()
     {
-        println!("\n==> Etapa {}/3: {}", index + 1, command_name(command));
+        println!("\n==> Step {}/3: {}", index + 1, command_name(command));
         let args = stage_args(command, &options);
         let status = match command {
             Command::Aur => aur::run(&args),
             Command::Pkg => pkg::run(root, &args),
             Command::Desktop => desktop::run(root, &args),
-            _ => unreachable!("somente etapas do all"),
+            _ => unreachable!("all steps only"),
         };
         if status != 0 {
             eprintln!(
-                "Erro: etapa {} falhou (código {status}).",
+                "Error: step {} failed (exit code {status}).",
                 command_name(command)
             );
             return status;
         }
     }
-    println!("\nConcluído: aur, pkg e desktop processados.");
+    println!("\nComplete: aur, pkg and desktop completed.");
     0
 }
 
@@ -118,7 +116,7 @@ fn command_name(command: Command) -> &'static str {
         Command::Aur => "aur",
         Command::Pkg => "pkg",
         Command::Desktop => "desktop",
-        _ => unreachable!("somente etapas do all"),
+        _ => unreachable!("all steps only"),
     }
 }
 

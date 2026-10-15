@@ -114,7 +114,7 @@ archsetup pkg --profile NOME
 
 ## Configuração do desktop
 
-`archsetup desktop` configura o Xfce com Nordic, ícones Zafiro Dark, cursor Hackneyed e um painel superior com menu, busca e espaços de trabalho numerados. Também ajusta atalhos e o touchpad. Se LightDM com Slick Greeter estiver habilitado, aplica o visual à tela de login. Se Ly estiver habilitado, ativa a animação Matrix e mostra data e hora no login. Outros gerenciadores são preservados.
+`archsetup desktop` configura o Xfce com Nordic, ícones Zafiro Dark, cursor Hackneyed e um painel superior com menu, busca e espaços de trabalho numerados. Também ajusta atalhos e o touchpad. Se Ly estiver habilitado, ativa a animação Matrix e mostra data e hora no login. Outros gerenciadores são preservados.
 
 Execute o comando dentro de uma sessão X11 do Xfce:
 

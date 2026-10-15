@@ -22,7 +22,7 @@ impl LinuxDesktop {
         let home = env::var_os("HOME")
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
-            .ok_or("HOME não está definido")?;
+            .ok_or("HOME is not set")?;
         let state_home = env::var_os("XDG_STATE_HOME")
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
@@ -65,11 +65,6 @@ impl LinuxDesktop {
         })
     }
 
-    pub fn uses_lightdm(&self) -> bool {
-        fs::canonicalize("/etc/systemd/system/display-manager.service")
-            .is_ok_and(|path| path.ends_with("lightdm.service"))
-    }
-
     pub fn uses_ly(&self) -> bool {
         success("systemctl", &["is-enabled", "--quiet", "ly.service"]).unwrap_or(false)
             || (1..=6).any(|tty| {
@@ -82,15 +77,15 @@ impl LinuxDesktop {
 
     pub fn preflight(&self, profile: Option<&str>) -> Result<(), String> {
         if system::effective_uid()? == 0 {
-            return Err("Execute como usuário comum, sem sudo.".to_owned());
+            return Err("Run as a regular user, without sudo.".to_owned());
         }
         let os_release = fs::read_to_string("/etc/os-release")
-            .map_err(|_| "Não foi possível identificar a distribuição.".to_owned())?;
+            .map_err(|_| "Could not identify the distribution.".to_owned())?;
         if !os_release
             .lines()
             .any(|line| line == "ID=arch" || line == "ID=\"arch\"")
         {
-            return Err("A configuração do desktop só é permitida no Arch Linux.".to_owned());
+            return Err("Desktop configuration can only run on Arch Linux.".to_owned());
         }
         self.check_xfce_environment()?;
         for name in [
@@ -107,33 +102,25 @@ impl LinuxDesktop {
             "install",
         ] {
             if !system::command_exists(name) {
-                return Err(format!("Comando necessário ausente: {name}"));
+                return Err(format!("Required command missing: {name}"));
             }
         }
         if let Some(profile) = profile {
             doctor::check_profile(&LinuxInspector, &self.root, profile)
-                .map_err(|error| format!("Aplicação recusada para este perfil: {error}"))?;
+                .map_err(|error| format!("Cannot apply this profile: {error}"))?;
         }
         if !system::installed("xorg-server") {
             return Err(
-                "xorg-server ausente; configure a sessão X11 do Xfce antes de aplicar.".to_owned(),
+                "xorg-server is missing; set up an Xfce X11 session before applying changes."
+                    .to_owned(),
             );
         }
-        if self.uses_lightdm() {
-            if !system::command_exists("lightdm") {
-                return Err("LightDM habilitado, mas o comando lightdm está ausente.".to_owned());
-            }
-            if !Path::new("/usr/share/xgreeters/lightdm-slick-greeter.desktop").is_file() {
-                return Err(
-                    "LightDM habilitado, mas Slick Greeter está ausente.".to_owned(),
-                );
-            }
-        } else if self.uses_ly() {
+        if self.uses_ly() {
             if !system::command_exists("ly-dm") {
-                return Err("Ly habilitado, mas ly-dm não foi encontrado.".to_owned());
+                return Err("Ly is enabled, but ly-dm was not found.".to_owned());
             }
             if !Path::new("/etc/ly/config.ini").is_file() {
-                return Err("Ly habilitado, mas /etc/ly/config.ini está ausente.".to_owned());
+                return Err("Ly is enabled, but /etc/ly/config.ini is missing.".to_owned());
             }
         }
         for path in [
@@ -142,7 +129,7 @@ impl LinuxDesktop {
             "/usr/share/pixmaps/archlinux-logo.svg",
         ] {
             if !Path::new(path).is_file() {
-                return Err(format!("Arquivo necessário ausente: {path}"));
+                return Err(format!("Required file missing: {path}"));
             }
         }
         let alt = maybe_output(
@@ -160,7 +147,7 @@ impl LinuxDesktop {
                 || value == "xfce4-popup-whiskermenu"
         }) {
             return Err(
-                "Alt+F1 já executa outro comando; revise o atalho no Xfce antes de aplicar."
+                "Alt+F1 already runs another command; review the Xfce shortcut before applying changes."
                     .to_owned(),
             );
         }
@@ -175,7 +162,7 @@ impl LinuxDesktop {
         );
         if super_key.as_deref().is_some_and(|value| !value.is_empty()) {
             return Err(
-                "Super_L já tem um atalho próprio no Xfce; remova o conflito antes de aplicar."
+                "Super_L already has an Xfce shortcut; remove the conflict before applying changes."
                     .to_owned(),
             );
         }
@@ -183,12 +170,7 @@ impl LinuxDesktop {
             "/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf",
             "/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf",
         ];
-        if self.uses_lightdm() {
-            root_paths.extend([
-                "/etc/lightdm/slick-greeter.conf",
-                "/etc/lightdm/lightdm.conf.d/90-archsetup-slick.conf",
-            ]);
-        } else if self.uses_ly() {
+        if self.uses_ly() {
             root_paths.push("/etc/ly/config.ini");
         }
         for path in root_paths {
@@ -196,39 +178,30 @@ impl LinuxDesktop {
             match fs::symlink_metadata(path) {
                 Ok(metadata) if metadata.file_type().is_symlink() => {
                     return Err(format!(
-                        "Não vou substituir um link simbólico: {}",
+                        "Will not replace a symbolic link: {}",
                         path.display()
                     ));
                 }
                 Ok(metadata) if !metadata.is_file() => {
-                    return Err(format!(
-                        "Caminho não é um arquivo comum: {}",
-                        path.display()
-                    ));
+                    return Err(format!("Path is not a regular file: {}", path.display()));
                 }
                 Ok(_) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(format!(
-                        "não foi possível inspecionar {}: {error}",
-                        path.display()
-                    ));
+                    return Err(format!("could not inspect {}: {error}", path.display()));
                 }
             }
         }
         for directory in [self.home.join(".icons"), self.home.join(".icons/default")] {
             match fs::symlink_metadata(&directory) {
                 Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
-                    return Err(format!(
-                        "Diretório de cursores inválido: {}",
-                        directory.display()
-                    ));
+                    return Err(format!("Invalid cursor directory: {}", directory.display()));
                 }
                 Ok(_) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(format!(
-                        "não foi possível inspecionar {}: {error}",
+                        "could not inspect {}: {error}",
                         directory.display()
                     ));
                 }
@@ -242,7 +215,7 @@ impl LinuxDesktop {
             match fs::symlink_metadata(&config_file) {
                 Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
                     return Err(format!(
-                        "Configuração não é um arquivo comum: {}",
+                        "Configuration is not a regular file: {}",
                         config_file.display()
                     ));
                 }
@@ -250,7 +223,7 @@ impl LinuxDesktop {
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(format!(
-                        "não foi possível inspecionar {}: {error}",
+                        "could not inspect {}: {error}",
                         config_file.display()
                     ));
                 }
@@ -259,17 +232,13 @@ impl LinuxDesktop {
                 && config_file != self.config_dir.join("autostart/ksuperkey.desktop")
             {
                 fs::read_to_string(&config_file).map_err(|error| {
-                    format!("não foi possível ler {}: {error}", config_file.display())
+                    format!("could not read {}: {error}", config_file.display())
                 })?;
             }
         }
-        if self.uses_lightdm() && Path::new("/etc/lightdm/slick-greeter.conf").is_file() {
-            fs::read_to_string("/etc/lightdm/slick-greeter.conf").map_err(|_| {
-                "Não é possível ler a configuração existente do Slick Greeter.".to_owned()
-            })?;
-        } else if self.uses_ly() {
+        if self.uses_ly() {
             fs::read_to_string("/etc/ly/config.ini")
-                .map_err(|_| "Não é possível ler a configuração existente do Ly.".to_owned())?;
+                .map_err(|_| "Could not read the existing Ly configuration.".to_owned())?;
         }
         self.panel_plan()?;
         Ok(())
@@ -277,14 +246,11 @@ impl LinuxDesktop {
 
     pub fn preflight_assets(&self) -> Result<(), String> {
         if !system::command_exists("ksuperkey") {
-            return Err("ksuperkey não encontrado; execute archsetup pkg desktop.".to_owned());
+            return Err("ksuperkey was not found; run archsetup pkg desktop.".to_owned());
         }
         if let Some(missing) = self.missing_packages() {
             if !missing.is_empty() {
-                return Err(format!(
-                    "Pacotes necessários ausentes: {}",
-                    missing.join(" ")
-                ));
+                return Err(format!("Missing required packages: {}", missing.join(" ")));
             }
         }
         for (path, directory) in [
@@ -300,16 +266,16 @@ impl LinuxDesktop {
             };
             if !present {
                 return Err(format!(
-                    "Tema, ícones ou cursor ausente: {path}. Execute archsetup pkg theme."
+                    "Theme, icons or cursor missing: {path}. Run archsetup pkg theme."
                 ));
             }
         }
         if !Path::new("/usr/share/xfce4/panel/plugins/kbdleds.desktop").is_file() {
-            return Err("Plugin Keyboard LEDs ausente; execute archsetup pkg desktop.".to_owned());
+            return Err("Keyboard LEDs plugin missing; run archsetup pkg desktop.".to_owned());
         }
         let plan = self.panel_plan()?;
         if !system::command_exists(plan.menu_command) {
-            return Err(format!("Comando do menu ausente: {}", plan.menu_command));
+            return Err(format!("Menu command missing: {}", plan.menu_command));
         }
         Ok(())
     }
@@ -323,20 +289,17 @@ impl LinuxDesktop {
             .transpose()?
             .unwrap_or(false);
         run("sudo", &["-v"])?;
-        println!("\n==> Configurando Xfce");
+        println!("\n==> Configuring Xfce");
         self.configure_xfce()?;
-        if self.uses_lightdm() {
-            println!("\n==> Configurando tela de login LightDM/Slick");
-            self.configure_greeter()?;
-        } else if self.uses_ly() {
-            println!("\n==> Configurando tela de login Ly");
+        if self.uses_ly() {
+            println!("\n==> Configuring the Ly login screen");
             self.configure_ly()?;
         } else {
-            println!("\n==> Login: gerenciador atual preservado (sem ajustes de greeter).");
+            println!("\n==> Login: current display manager preserved (no greeter changes).");
         }
-        println!("\n==> Configurando touchpad");
+        println!("\n==> Configuring the touchpad");
         self.configure_touchpad(tapping)?;
-        println!("\nConcluído: desktop configurado.");
+        println!("\nComplete: desktop configured.");
         Ok(())
     }
 }
@@ -346,12 +309,12 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
     let status = Command::new(program)
         .args(args)
         .status()
-        .map_err(|error| format!("não foi possível executar {program}: {error}"))?;
+        .map_err(|error| format!("could not run {program}: {error}"))?;
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "{program} falhou (código {}).",
+            "{program} failed (exit code {}).",
             status.code().unwrap_or(1)
         ))
     }
@@ -361,14 +324,14 @@ fn capture(program: &str, args: &[&str]) -> Result<String, String> {
     let output = Command::new(program)
         .args(args)
         .output()
-        .map_err(|error| format!("não foi possível executar {program}: {error}"))?;
+        .map_err(|error| format!("could not run {program}: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "{program} falhou (código {}).",
+            "{program} failed (exit code {}).",
             output.status.code().unwrap_or(1)
         ));
     }
-    String::from_utf8(output.stdout).map_err(|_| format!("saída inválida de {program}"))
+    String::from_utf8(output.stdout).map_err(|_| format!("invalid output from {program}"))
 }
 
 fn maybe_output(program: &str, args: &[&str]) -> Option<String> {
@@ -381,6 +344,6 @@ fn success(program: &str, args: &[&str]) -> Result<bool, String> {
     let output = Command::new(program)
         .args(args)
         .output()
-        .map_err(|error| format!("não foi possível executar {program}: {error}"))?;
+        .map_err(|error| format!("could not run {program}: {error}"))?;
     Ok(output.status.success())
 }

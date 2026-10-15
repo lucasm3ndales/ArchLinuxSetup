@@ -27,17 +27,17 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
                 index += 1;
                 let profile = args
                     .get(index)
-                    .ok_or("Falta o nome após --profile.")?
+                    .ok_or("Missing name after --profile.")?
                     .to_string_lossy();
                 if !project::valid_profile_name(&profile) {
-                    return Err("Nome de perfil inválido.".to_owned());
+                    return Err("Invalid profile name.".to_owned());
                 }
                 options.profile = Some(profile.into_owned());
             }
             "-h" | "--help" => return Ok(None),
             name => match Category::parse(name) {
                 Some(category) => options.categories.push(category),
-                None => return Err(format!("Opção ou categoria desconhecida: {name}")),
+                None => return Err(format!("Unknown option or category: {name}")),
             },
         }
         index += 1;
@@ -49,11 +49,11 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup pkg [CATEGORIA...] [--profile NOME] [--dry-run]\n");
-    println!("Categorias: base development apps theme desktop gaming emulation");
-    println!("Padrão: base development apps theme desktop\n");
-    println!("O perfil é opcional. Sem ele, são usados apenas os pacotes compartilhados.");
-    println!("--dry-run mostra a seleção sem atualizar ou instalar nada.");
+    println!("Usage: archsetup pkg [CATEGORY...] [--profile NAME] [--dry-run]\n");
+    println!("Categories: base development apps theme desktop gaming emulation");
+    println!("Default: base development apps theme desktop\n");
+    println!("The profile is optional. Without it, only shared packages are selected.");
+    println!("--dry-run shows the selection without updating or installing anything.");
     0
 }
 
@@ -62,20 +62,20 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         Ok(Some(options)) => options,
         Ok(None) => return help(),
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 2;
         }
     };
     if let Some(profile) = &options.profile {
         if !root.join("profiles").join(profile).is_dir() {
-            eprintln!("Erro: Perfil inexistente: {profile}");
+            eprintln!("Error: Unknown profile: {profile}");
             return 2;
         }
     }
     let home = match std::env::var_os("HOME").filter(|home| !home.is_empty()) {
         Some(home) => PathBuf::from(home),
         None => {
-            eprintln!("Erro: HOME não está definido.");
+            eprintln!("Error: HOME is not set.");
             return 1;
         }
     };
@@ -89,37 +89,33 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     ) {
         Ok(selection) => selection,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 1;
         }
     };
     show_selection(&linux, &selection, &options);
     if options.dry_run {
         if !selection.aur.is_empty() && linux.helper().is_none() {
-            println!(
-                "\nDependência: archsetup aur instala o auxiliar necessário para os pacotes AUR."
-            );
+            println!("\nDependency: archsetup aur installs the helper required for AUR packages.");
         }
         if selection.includes(Category::Development) {
             println!(
-                "\nDocker: adicionar o usuário atual ao grupo docker, se necessário, e habilitar/iniciar docker.service."
+                "\nDocker: add the current user to the docker group if needed, then enable/start docker.service."
             );
             if linux.installed("ufw") {
-                println!("Aviso: portas publicadas pelo Docker podem contornar regras do UFW.");
+                println!("Warning: Docker-published ports may bypass UFW rules.");
             }
         }
         if selection.includes(Category::Gaming) {
             println!(
-                "\nSteam exige [multilib] e bibliotecas gráficas de 32 bits compatíveis com a GPU."
+                "\nSteam requires [multilib] and 32-bit graphics libraries compatible with the GPU."
             );
         }
-        println!(
-            "\nPrévia concluída. Nenhuma alteração realizada. O estado de dependências não foi calculado."
-        );
+        println!("\nPreview complete. No changes made. Dependency state was not calculated.");
         return 0;
     }
     if let Err(error) = linux.preflight(&selection, options.profile.as_deref()) {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     let helper = if selection.aur.is_empty() {
@@ -128,7 +124,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         match ensure_aur_helper(&linux) {
             Ok(helper) => Some(helper),
             Err(error) => {
-                eprintln!("Erro: {error}");
+                eprintln!("Error: {error}");
                 return 1;
             }
         }
@@ -136,7 +132,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     let tracker = match PackageTracker::begin(&home, state_home.as_deref()) {
         Ok(tracker) => tracker,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 1;
         }
     };
@@ -144,18 +140,18 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     let tracked = tracker.finish();
     if let Ok(count) = &tracked {
         if *count > 0 {
-            println!("Pacotes novos registrados para possível remoção: {count}");
+            println!("New packages tracked for possible removal: {count}");
         }
     }
     if let Err(error) = result {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         if let Err(tracking_error) = tracked {
-            eprintln!("Aviso: registro de pacotes incompleto: {tracking_error}");
+            eprintln!("Warning: package tracking is incomplete: {tracking_error}");
         }
         return 1;
     }
     if let Err(error) = tracked {
-        eprintln!("Erro: instalação concluída, mas registro de pacotes falhou: {error}");
+        eprintln!("Error: installation finished, but package tracking failed: {error}");
         return 1;
     }
     let categories = selection
@@ -165,29 +161,29 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         .collect::<Vec<_>>()
         .join(" ");
     println!(
-        "\nConcluído: categorias {categories} processadas. Pacotes já instalados são ignorados por --needed."
+        "\nComplete: categories {categories} processed. Installed packages are skipped by --needed."
     );
     0
 }
 
 fn show_selection(source: &impl PackageSource, selection: &Selection, options: &Options) {
     println!(
-        "==> {} de pacotes",
+        "==> {}",
         if options.dry_run {
-            "Prévia"
+            "Package preview"
         } else {
-            "Instalação"
+            "Package installation"
         }
     );
     println!(
-        "Perfil: {}",
+        "Profile: {}",
         options
             .profile
             .as_deref()
-            .unwrap_or("nenhum (somente pacotes compartilhados)")
+            .unwrap_or("none (shared packages only)")
     );
     println!(
-        "Categorias: {}",
+        "Categories: {}",
         selection
             .categories
             .iter()
@@ -197,24 +193,24 @@ fn show_selection(source: &impl PackageSource, selection: &Selection, options: &
     );
     let mut installed = 0;
     let mut missing = 0;
-    println!("\nPacotes oficiais ({}):", selection.official.len());
+    println!("\nOfficial packages ({}):", selection.official.len());
     for package in &selection.official {
         show_package(source, package, &mut installed, &mut missing);
     }
-    println!("\nPacotes AUR ({}):", selection.aur.len());
+    println!("\nAUR packages ({}):", selection.aur.len());
     if selection.aur.is_empty() {
-        println!("  nenhum");
+        println!("  none");
     } else {
         for package in &selection.aur {
             show_package(source, package, &mut installed, &mut missing);
         }
     }
     if source.pacman_available() {
-        println!("\nResumo: {installed} instalados; {missing} ausentes.");
+        println!("\nSummary: {installed} installed; {missing} missing.");
     }
     if selection.rust_provider == RustProvider::Rust {
         println!(
-            "\nRust: rust já está instalado; rustup foi retirado da seleção para evitar conflito."
+            "\nRust: rust is already installed; rustup was removed from the selection to avoid a conflict."
         );
     }
     if selection.aur.iter().any(|name| name == "nvidia-580xx-dkms") {
@@ -224,7 +220,10 @@ fn show_selection(source: &impl PackageSource, selection: &Selection, options: &
             .filter(|name| source.installed(name))
             .collect::<Vec<_>>();
         if !conflicts.is_empty() {
-            println!("\n[AVISO] NVIDIA 580xx conflita com: {}. A aplicação será recusada até revisar esses pacotes.", conflicts.join(", "));
+            println!(
+                "\n[WARN] NVIDIA 580xx conflicts with: {}. Installation will be blocked until those packages are reviewed.",
+                conflicts.join(", ")
+            );
         }
     }
 }
@@ -236,13 +235,13 @@ fn show_package(
     missing: &mut usize,
 ) {
     if !source.pacman_available() {
-        println!("  {package:<28} não verificado (pacman indisponível)");
+        println!("  {package:<28} not checked (pacman unavailable)");
     } else if source.installed(package) {
         *installed += 1;
-        println!("  {package:<28} instalado");
+        println!("  {package:<28} installed");
     } else {
         *missing += 1;
-        println!("  {package:<28} ausente");
+        println!("  {package:<28} missing");
     }
 }
 
@@ -250,26 +249,24 @@ fn ensure_aur_helper(linux: &LinuxPkg) -> Result<&'static str, String> {
     if let Some(helper) = linux.helper() {
         return Ok(helper);
     }
-    println!("\nDependência: os pacotes AUR exigem um auxiliar. archsetup aur instala o paru.");
+    println!("\nDependency: AUR packages require a helper. archsetup aur installs paru.");
     if !io::stdin().is_terminal() {
-        return Err(
-            "Execute archsetup aur em um terminal interativo e tente novamente.".to_owned(),
-        );
+        return Err("Run archsetup aur in an interactive terminal and try again.".to_owned());
     }
-    print!("Executar archsetup aur agora? [s/N] ");
+    print!("Run archsetup aur now? [y/N] ");
     io::stdout().flush().map_err(|error| error.to_string())?;
     let mut answer = String::new();
     io::stdin()
         .read_line(&mut answer)
-        .map_err(|_| "Não foi possível ler a resposta.".to_owned())?;
-    if !matches!(answer.trim(), "s" | "S" | "sim" | "SIM" | "Sim") {
-        return Err("Dependência não executada. Instale o auxiliar e tente novamente.".to_owned());
+        .map_err(|_| "Could not read the response.".to_owned())?;
+    if !matches!(answer.trim(), "y" | "Y" | "yes" | "YES" | "Yes") {
+        return Err("Dependency not installed. Install the helper and try again.".to_owned());
     }
     if aur::run(&[]) != 0 {
-        return Err("archsetup aur falhou; confira a saída acima.".to_owned());
+        return Err("archsetup aur failed; check the output above.".to_owned());
     }
     if !crate::system::command_exists("paru") {
-        return Err("archsetup aur terminou, mas paru não foi encontrado no PATH.".to_owned());
+        return Err("archsetup aur finished, but paru was not found in PATH.".to_owned());
     }
     Ok("paru")
 }

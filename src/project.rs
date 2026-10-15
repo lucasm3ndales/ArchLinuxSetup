@@ -6,16 +6,16 @@ pub fn find_root() -> Result<PathBuf, String> {
         if valid_root(&root) {
             return Ok(root);
         }
-        return Err("ARCHSETUP_PROJECT_DIR não aponta para um repositório ArchSetup".to_owned());
+        return Err("ARCHSETUP_PROJECT_DIR does not point to an ArchSetup repository".to_owned());
     }
     let executable = std::env::current_exe()
-        .map_err(|error| format!("não foi possível localizar o executável: {error}"))?;
+        .map_err(|error| format!("could not locate the executable: {error}"))?;
     for parent in executable.ancestors() {
         if valid_root(parent) {
             return Ok(parent.to_path_buf());
         }
     }
-    Err("não foi possível localizar o repositório ArchSetup".to_owned())
+    Err("could not locate the ArchSetup repository".to_owned())
 }
 
 fn valid_root(root: &std::path::Path) -> bool {

@@ -21,19 +21,19 @@ fn parse_args(args: &[OsString]) -> Result<Options, String> {
             Some("--packages") => options.packages = true,
             Some("--dry-run") => options.dry_run = true,
             Some("-h" | "--help") => options.help = true,
-            _ => return Err(format!("Opção desconhecida: {}", arg.to_string_lossy())),
+            _ => return Err(format!("Unknown option: {}", arg.to_string_lossy())),
         }
     }
     Ok(options)
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup restore [--packages] [--dry-run]");
+    println!("Usage: archsetup restore [--packages] [--dry-run]");
     println!();
-    println!("Recupera configurações com backup anterior sem remover o comando archsetup.");
-    println!("--packages remove somente pacotes registrados como novos pelo ArchSetup.");
-    println!("--dry-run mostra as ações sem alterar o sistema.");
-    println!("Execute fora da sessão gráfica do Xfce para restaurar seus arquivos.");
+    println!("Restores previously backed-up settings without removing the archsetup command.");
+    println!("--packages removes only packages tracked as new by ArchSetup.");
+    println!("--dry-run previews actions without changing the system.");
+    println!("Run outside the Xfce graphical session to restore its files.");
     0
 }
 
@@ -41,7 +41,7 @@ pub fn run(args: &[OsString]) -> i32 {
     let options = match parse_args(args) {
         Ok(options) => options,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             return 2;
         }
     };
@@ -51,7 +51,7 @@ pub fn run(args: &[OsString]) -> i32 {
     match restore_command(options) {
         Ok(()) => 0,
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             1
         }
     }
@@ -59,35 +59,35 @@ pub fn run(args: &[OsString]) -> i32 {
 
 fn restore_command(options: Options) -> Result<(), String> {
     if system::effective_uid()? == 0 {
-        return Err("Execute como usuário comum, sem sudo.".to_owned());
+        return Err("Run as a regular user, without sudo.".to_owned());
     }
     let home = std::env::var_os("HOME")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .ok_or("HOME não está definido")?;
+        .ok_or("HOME is not set")?;
     let config_home = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
     let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from);
     let adapter = LinuxRestore::new(home, config_home, state_home);
     let xfce_backup = adapter.oldest_xfce_backup()?;
-    println!("==> Restauração do ArchSetup");
+    println!("==> ArchSetup restore");
     if let Some(backup) = &xfce_backup {
         println!(
-            "Xfce: restaurar configuração anterior de {}",
+            "Xfce: restore previous configuration from {}",
             backup.display()
         );
-        println!("Cursor: restaurar .Xresources e .icons/default/index.theme se houver backup.");
+        println!("Cursor: restore .Xresources and .icons/default/index.theme if a backup exists.");
     } else {
-        println!("Xfce: nenhum backup anterior encontrado; nada será alterado.");
+        println!("Xfce: no previous backup found; nothing will change.");
     }
-    println!("LightDM e touchpad: restaurar backups anteriores quando disponíveis.");
-    println!("Docker e navegador: restaurar estado anterior quando registrado.");
+    println!("Ly and touchpad: restore previous backups when available.");
+    println!("Docker and browser: restore the previous state when tracked.");
     let packages = if options.packages {
         let packages = adapter.installed_packages()?;
-        println!("Pacotes registrados e ainda instalados: {}", packages.len());
+        println!("Tracked packages still installed: {}", packages.len());
         println!(
-            "A lista inclui dependências novas da instalação e pode incluir pacotes usados depois por você."
+            "The list includes newly installed dependencies and may include packages you used later."
         );
-        println!("Registro: {}", adapter.manifest().display());
+        println!("Record: {}", adapter.manifest().display());
         for package in &packages {
             println!("  {package}");
         }
@@ -96,7 +96,7 @@ fn restore_command(options: Options) -> Result<(), String> {
         None
     };
     if options.dry_run {
-        println!("Prévia concluída. Nenhuma alteração realizada.");
+        println!("Preview complete. No changes made.");
         return Ok(());
     }
     adapter.apply(xfce_backup.as_deref(), packages.as_deref())

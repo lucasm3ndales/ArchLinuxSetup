@@ -21,12 +21,12 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
         match argument.as_ref() {
             "--profile" => {
                 index += 1;
-                let name = args.get(index).ok_or("falta o nome após --profile")?;
+                let name = args.get(index).ok_or("missing name after --profile")?;
                 options.profile = Some(name.to_string_lossy().into_owned());
             }
             "--verbose" => options.verbose = true,
             "-h" | "--help" => return Ok(None),
-            _ => return Err(format!("opção desconhecida em doctor: {argument}")),
+            _ => return Err(format!("unknown option for doctor: {argument}")),
         }
         index += 1;
     }
@@ -34,11 +34,11 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup doctor [--profile NOME] [--verbose]");
+    println!("Usage: archsetup doctor [--profile NAME] [--verbose]");
     println!();
-    println!("Confere o sistema sem alterar arquivos. --verbose também mostra o diagnóstico");
-    println!("detalhado de hardware, discos, sessão e serviços.");
-    println!("Informa se o Xfce está instalado e se a sessão X11 do Xfce está ativa.");
+    println!("Checks the system without changing files. --verbose also shows detailed");
+    println!("hardware, disk, session and service diagnostics.");
+    println!("Reports whether Xfce is installed and an Xfce X11 session is active.");
     0
 }
 
@@ -47,13 +47,13 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         Ok(Some(options)) => options,
         Ok(None) => return help(),
         Err(message) => {
-            eprintln!("Erro: {message}");
+            eprintln!("Error: {message}");
             return 2;
         }
     };
     if let Some(profile) = &options.profile {
         if !project::valid_profile_name(profile) || !root.join("profiles").join(profile).is_dir() {
-            eprintln!("Erro: perfil inexistente ou inválido: {profile}.");
+            eprintln!("Error: unknown or invalid profile: {profile}.");
             return 2;
         }
     }
@@ -87,10 +87,10 @@ fn section(name: &str) {
 }
 
 fn details() {
-    println!("==> Diagnóstico do Arch e do hardware");
-    println!("Somente leitura. Revise UUIDs e dados do equipamento antes de compartilhar a saída.");
+    println!("==> Arch and hardware diagnostics");
+    println!("Read-only. Review UUIDs and device details before sharing the output.");
 
-    section("Sistema e sessão");
+    section("System and session");
     println!(
         "Kernel: {}",
         system::output("uname", &["-r"]).unwrap_or_default()
@@ -100,20 +100,20 @@ fn details() {
         system::output("hostname", &[]).unwrap_or_default()
     );
     println!(
-        "Sessão: {}",
+        "Session: {}",
         std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "desconhecida".to_owned())
     );
     println!(
         "Desktop: {}",
-        std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "desconhecido".to_owned())
+        std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "unknown".to_owned())
     );
     if system::command_exists("timedatectl") {
         let timezone = system::output("timedatectl", &["show", "-p", "Timezone", "--value"]);
         println!(
-            "Fuso horário: {}",
+            "Time zone: {}",
             timezone
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| "indisponível".to_owned())
+                .unwrap_or_else(|| "unavailable".to_owned())
         );
     }
     if let Some(locale) = system::read_trimmed(Path::new("/etc/locale.conf")) {
@@ -143,22 +143,20 @@ fn details() {
             }
         }
     } else {
-        println!("Comando indisponível: lscpu");
+        println!("Command unavailable: lscpu");
     }
 
-    section("Placas de vídeo e drivers em uso");
+    section("Graphics cards and active drivers");
     system::run_optional("lspci", &["-nnk", "-d", "::03xx"]);
-    section("Rede, áudio e armazenamento PCI");
+    section("Network, audio and PCI storage");
     for class in ["0280", "0200", "0403", "0108"] {
         system::run_optional("lspci", &["-nnk", "-d", &format!("::{class}")]);
     }
-    section("Dispositivos USB e bloqueios de rádio");
+    section("USB devices and radio blocks");
     system::run_optional("lsusb", &[]);
     system::run_optional("rfkill", &["list"]);
 
-    section(
-        "Discos e sistema de arquivos (confira modelo, UUID e partições antes de qualquer alteração)",
-    );
+    section("Disks and filesystems (check model, UUID and partitions before making changes)");
     system::run_optional(
         "lsblk",
         &["-o", "NAME,MODEL,SIZE,TYPE,FSTYPE,UUID,MOUNTPOINTS"],
@@ -168,7 +166,7 @@ fn details() {
     system::run_optional("swapon", &["--show"]);
     system::run_optional("zramctl", &[]);
 
-    section("Entrada e touchpad");
+    section("Input and touchpad");
     if let Ok(devices) = fs::read_to_string("/proc/bus/input/devices") {
         for line in devices.lines().filter(|line| line.starts_with("N: Name=")) {
             println!("{line}");
@@ -184,10 +182,10 @@ fn details() {
                 .status();
         }
     } else {
-        println!("Abra uma sessão X11 para consultar xinput e as opções do Xfce.");
+        println!("Start an X11 session to inspect xinput and Xfce settings.");
     }
 
-    section("Módulos e iluminação");
+    section("Modules and backlight");
     if let Some(modules) = system::output("lsmod", &[]) {
         const MODULES: &[&str] = &[
             "acer_wmi",
@@ -212,7 +210,7 @@ fn details() {
         }
     }
 
-    section("Pacotes relevantes instalados");
+    section("Installed relevant packages");
     if system::command_exists("pacman") {
         const PACKAGES: &[&str] = &[
             "linux",
@@ -220,8 +218,8 @@ fn details() {
             "linux-zen",
             "linux-zen-headers",
             "dkms",
-            "grub",
-            "grub-btrfs",
+            "limine",
+            "limine-snapper-sync",
             "mesa",
             "vulkan-intel",
             "intel-media-driver",
@@ -259,10 +257,10 @@ fn details() {
             }
         }
     } else {
-        println!("Comando indisponível: pacman");
+        println!("Command unavailable: pacman");
     }
 
-    section("Boot e snapshots");
+    section("Boot and snapshots");
     if system::command_exists("findmnt") {
         for mountpoint in ["/boot", "/boot/efi", "/efi"] {
             if mount_value(mountpoint, "FSTYPE").is_some() {
@@ -274,33 +272,32 @@ fn details() {
             }
         }
     } else {
-        println!("Comando indisponível: findmnt");
+        println!("Command unavailable: findmnt");
     }
 
-    section("Serviços de login e rede");
+    section("Login and network services");
     if system::command_exists("systemctl") {
         for service in [
             "ly@tty1.service",
             "getty@tty1.service",
-            "lightdm.service",
             "NetworkManager.service",
         ] {
             let state = system::output_any_status("systemctl", &["is-enabled", service])
-                .unwrap_or_else(|| "indisponível".to_owned());
+                .unwrap_or_else(|| "unavailable".to_owned());
             println!("{service}: {state}");
         }
     }
-    section("Serviços de energia");
+    section("Power services");
     if system::command_exists("systemctl") {
         for service in ["tlp.service", "power-profiles-daemon.service"] {
             let state = system::output_any_status("systemctl", &["is-active", service])
-                .unwrap_or_else(|| "indisponível".to_owned());
+                .unwrap_or_else(|| "unavailable".to_owned());
             println!("{service}: {state}");
         }
     } else {
-        println!("Comando indisponível: systemctl");
+        println!("Command unavailable: systemctl");
     }
-    println!("\nConcluído: diagnóstico exibido. Nenhuma alteração realizada.");
+    println!("\nComplete: diagnostics displayed. No changes made.");
 }
 
 #[cfg(test)]

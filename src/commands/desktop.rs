@@ -23,15 +23,15 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
                 index += 1;
                 let profile = args
                     .get(index)
-                    .ok_or("Falta o nome após --profile.")?
+                    .ok_or("Missing name after --profile.")?
                     .to_string_lossy();
                 if !project::valid_profile_name(&profile) {
-                    return Err("Perfil inexistente ou inválido".to_owned());
+                    return Err("Unknown or invalid profile".to_owned());
                 }
                 options.profile = Some(profile.into_owned());
             }
             "-h" | "--help" => return Ok(None),
-            _ => return Err("desktop aceita somente --profile NOME e --dry-run".to_owned()),
+            _ => return Err("desktop accepts only --profile NAME and --dry-run".to_owned()),
         }
         index += 1;
     }
@@ -39,10 +39,10 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 }
 
 pub fn help() -> i32 {
-    println!("Uso: archsetup desktop [--profile NOME] [--dry-run]\n");
-    println!("Configura Xfce e touchpad X11; ajusta o greeter LightDM/Slick ou Ly, se habilitado.");
-    println!("Execute como usuário comum em uma sessão X11 do Xfce.");
-    println!("O perfil opcional aplica somente ajustes de hardware compatíveis.");
+    println!("Usage: archsetup desktop [--profile NAME] [--dry-run]\n");
+    println!("Configures Xfce and the X11 touchpad; adjusts Ly if enabled.");
+    println!("Run as a regular user in an Xfce X11 session.");
+    println!("The optional profile applies only compatible hardware settings.");
     0
 }
 
@@ -51,113 +51,119 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         Ok(Some(options)) => options,
         Ok(None) => return help(),
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 2;
         }
     };
     let profile_data = if let Some(profile) = &options.profile {
         if !root.join("profiles").join(profile).is_dir() {
-            eprintln!("Erro: Perfil inexistente ou inválido: {profile}");
+            eprintln!("Error: Unknown or invalid profile: {profile}");
             return 1;
         }
         match doctor::read_profile(&LinuxInspector, root, profile) {
             Ok(data) => Some(data),
-            Err(error) => { eprintln!("Erro: {error}"); return 1; }
+            Err(error) => {
+                eprintln!("Error: {error}");
+                return 1;
+            }
         }
-    } else { None };
+    } else {
+        None
+    };
     let linux = match LinuxDesktop::new(root) {
         Ok(linux) => linux,
         Err(error) => {
-            eprintln!("Erro: {error}");
+            eprintln!("Error: {error}");
             return 1;
         }
     };
     if let Err(error) = linux.check_xfce_environment() {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     println!(
-        "==> {} do desktop",
+        "==> {} desktop",
         if options.dry_run {
-            "Prévia"
+            "Preview"
         } else {
-            "Configuração"
+            "Configuration"
         }
     );
-    println!("Perfil: {}", options.profile.as_deref().unwrap_or("nenhum"));
+    println!("Profile: {}", options.profile.as_deref().unwrap_or("none"));
     println!(
-        "  Xfce: Nordic, ícones Zafiro Dark, cursor Hackneyed, fontes, painel, busca, teclas Lock, espaços de trabalho e tecla Super."
+        "  Xfce: Nordic, Zafiro Dark icons, Hackneyed cursor, fonts, panel, search, lock-key indicators, workspaces and Super key."
     );
-    if linux.uses_lightdm() {
-        println!("  Login: Nordic, Zafiro Dark e Hackneyed no LightDM com Slick Greeter.");
-    } else if linux.uses_ly() {
-        println!("  Login: animação Matrix e data/hora no Ly.");
+    if linux.uses_ly() {
+        println!("  Login: Matrix animation and date/time in Ly.");
     } else {
-        println!("  Login: gerenciador atual preservado; tema do greeter não será alterado.");
+        println!("  Login: current display manager preserved; no greeter changes.");
     }
-    println!("  Touchpad X11: rolagem natural.");
-    if profile_data.as_ref().is_some_and(|data| data.touchpad_tapping) {
-        println!("  Touchpad X11: toque para clicar ativado por este perfil.");
+    println!("  X11 touchpad: natural scrolling.");
+    if profile_data
+        .as_ref()
+        .is_some_and(|data| data.touchpad_tapping)
+    {
+        println!("  X11 touchpad: tap-to-click enabled by this profile.");
     }
     if options.dry_run {
         match linux.missing_packages() {
             Some(missing) if !missing.is_empty() => {
                 println!(
-                    "Pacotes ausentes: {}\nDependência: archsetup pkg desktop theme.",
+                    "Missing packages: {}\nDependency: archsetup pkg desktop theme.",
                     missing.join(" ")
                 );
             }
             Some(_) => {
-                println!("Pacotes necessários das categorias desktop e theme já instalados.")
+                println!("Required packages from desktop and theme are already installed.")
             }
-            None => println!("Pacotes necessários não verificados (pacman indisponível)."),
+            None => println!("Required packages not checked (pacman unavailable)."),
         }
-        println!("Prévia concluída. Nenhuma alteração realizada.");
+        println!("Preview complete. No changes made.");
         return 0;
     }
     if let Err(error) = linux.preflight(options.profile.as_deref()) {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     if let Some(missing) = linux.missing_packages() {
         if !missing.is_empty() {
-            println!("Pacotes necessários ausentes: {}", missing.join(" "));
-            println!("Dependência: archsetup pkg desktop theme.");
+            println!("Missing required packages: {}", missing.join(" "));
+            println!("Dependency: archsetup pkg desktop theme.");
             if !io::stdin().is_terminal() {
                 eprintln!(
-                    "Erro: Execute archsetup pkg desktop theme em um terminal interativo e tente novamente."
+                    "Error: Run archsetup pkg desktop theme in an interactive terminal and try again."
                 );
                 return 1;
             }
-            print!("Executar archsetup pkg desktop theme agora? [s/N] ");
+            print!("Run archsetup pkg desktop theme now? [y/N] ");
             if let Err(error) = io::stdout().flush() {
-                eprintln!("Erro: {error}");
+                eprintln!("Error: {error}");
                 return 1;
             }
             let mut answer = String::new();
             if io::stdin().read_line(&mut answer).is_err() {
-                eprintln!("Erro: Não foi possível ler a resposta.");
+                eprintln!("Error: Could not read the response.");
                 return 1;
             }
-            if !matches!(answer.trim(), "s" | "S" | "sim" | "SIM" | "Sim") {
+            if !matches!(answer.trim(), "y" | "Y" | "yes" | "YES" | "Yes") {
                 eprintln!(
-                    "Erro: Dependência não executada. Configure os pacotes e tente novamente."
+                    "Error: dependency was not installed. Install the packages and try again."
                 );
                 return 1;
             }
             let status = pkg::run(root, &["desktop".into(), "theme".into()]);
             if status != 0 {
-                eprintln!("Erro: instalação de desktop e theme falhou (código {status}).");
+                eprintln!("Error: desktop and theme installation failed (exit code {status}).");
                 return status;
             }
         }
     }
     if let Err(error) = linux.preflight_assets() {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     if let Err(error) = linux.apply(options.profile.as_deref()) {
-        eprintln!("Erro: {error}");
+        eprintln!("Error: {error}");
         return 1;
     }
     0

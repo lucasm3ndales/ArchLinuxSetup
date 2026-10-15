@@ -34,13 +34,12 @@ impl SystemInspector for LinuxInspector {
 
     fn profile_names(&self, root: &Path) -> Result<Vec<String>, String> {
         let entries = fs::read_dir(root.join("profiles"))
-            .map_err(|error| format!("não foi possível listar perfis: {error}"))?;
+            .map_err(|error| format!("could not list profiles: {error}"))?;
         let mut names = Vec::new();
         for entry in entries {
             let entry = entry.map_err(|error| error.to_string())?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if project::valid_profile_name(&name)
-                && entry.path().join("profile.toml").is_file() {
+            if project::valid_profile_name(&name) && entry.path().join("profile.toml").is_file() {
                 names.push(name);
             }
         }

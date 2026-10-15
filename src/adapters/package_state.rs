@@ -24,7 +24,7 @@ impl PackageTracker {
             .unwrap_or_else(|| home.join(".local/state"))
             .join("archlinuxsetup");
         fs::create_dir_all(&state_dir)
-            .map_err(|error| format!("não foi possível criar {}: {error}", state_dir.display()))?;
+            .map_err(|error| format!("could not create {}: {error}", state_dir.display()))?;
         let before = installed_packages(pacman)?;
         let before_path = unique_path(&state_dir, "packages-before")?;
         write_new(&before_path, &package_state::serialize_inventory(&before))?;
@@ -36,15 +36,10 @@ impl PackageTracker {
         {
             Ok(mut file) => file
                 .write_all(package_state::serialize_inventory(&before).as_bytes())
-                .map_err(|error| {
-                    format!("não foi possível registrar o inventário inicial: {error}")
-                })?,
+                .map_err(|error| format!("could not record the initial inventory: {error}"))?,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
-                return Err(format!(
-                    "não foi possível criar {}: {error}",
-                    baseline.display()
-                ));
+                return Err(format!("could not create {}: {error}", baseline.display()));
             }
         }
         Ok(Self {
@@ -58,7 +53,7 @@ impl PackageTracker {
     pub fn finish(self) -> Result<usize, String> {
         self.finish_inner().map_err(|error| {
             format!(
-                "{error}. Inventário anterior preservado em {}",
+                "{error}. Previous inventory preserved at {}",
                 self.before_path.display()
             )
         })
@@ -72,20 +67,16 @@ impl PackageTracker {
             Ok(content) => package_state::parse_inventory(&content)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Inventory::new(),
             Err(error) => {
-                return Err(format!(
-                    "não foi possível ler {}: {error}",
-                    manifest.display()
-                ));
+                return Err(format!("could not read {}: {error}", manifest.display()));
             }
         };
         let merged = package_state::merge_manifest(&existing, &new);
         let temporary = unique_path(&self.state_dir, "packages-merged")?;
         write_new(&temporary, &package_state::serialize_inventory(&merged))?;
-        fs::rename(&temporary, &manifest).map_err(|error| {
-            format!("não foi possível atualizar {}: {error}", manifest.display())
-        })?;
+        fs::rename(&temporary, &manifest)
+            .map_err(|error| format!("could not update {}: {error}", manifest.display()))?;
         fs::remove_file(&self.before_path)
-            .map_err(|error| format!("não foi possível remover inventário temporário: {error}"))?;
+            .map_err(|error| format!("could not remove temporary inventory: {error}"))?;
         Ok(new.len())
     }
 }
@@ -94,12 +85,12 @@ fn installed_packages(pacman: &Path) -> Result<Inventory, String> {
     let output = Command::new(pacman)
         .arg("-Qq")
         .output()
-        .map_err(|error| format!("não foi possível consultar pacotes: {error}"))?;
+        .map_err(|error| format!("could not query packages: {error}"))?;
     if !output.status.success() {
-        return Err("não foi possível registrar os pacotes existentes".to_owned());
+        return Err("could not record existing packages".to_owned());
     }
     let content = String::from_utf8(output.stdout)
-        .map_err(|_| "pacman retornou nomes de pacotes inválidos".to_owned())?;
+        .map_err(|_| "pacman returned invalid package names".to_owned())?;
     package_state::parse_inventory(&content)
 }
 
@@ -170,7 +161,7 @@ fn write_new(path: &Path, content: &str) -> Result<(), String> {
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(|error| format!("não foi possível criar {}: {error}", path.display()))?;
+        .map_err(|error| format!("could not create {}: {error}", path.display()))?;
     file.write_all(content.as_bytes())
-        .map_err(|error| format!("não foi possível escrever {}: {error}", path.display()))
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
 }

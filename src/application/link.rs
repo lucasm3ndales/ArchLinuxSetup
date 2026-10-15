@@ -41,7 +41,7 @@ pub fn plan(
     let legacy_source = root.join("archsetup");
     if !reader.executable(&source)? {
         return Err(format!(
-            "binário Rust ausente em {}. Execute cargo build --release.",
+            "Rust binary is missing at {}. Run cargo build --release.",
             source.display()
         ));
     }
@@ -52,7 +52,7 @@ pub fn plan(
         LinkState::Symlink(path) if path == legacy_source => (true, true),
         LinkState::Symlink(_) | LinkState::Occupied => {
             return Err(format!(
-                "{} já existe e não aponta para este projeto",
+                "{} already exists and does not point to this project",
                 target.display()
             ));
         }

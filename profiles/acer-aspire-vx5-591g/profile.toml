@@ -1,5 +1,5 @@
 name = "acer-aspire-vx5-591g"
-description = "Acer Aspire VX5-591G (variantes regionais)"
+description = "Acer Aspire VX5-591G (regional variants)"
 match_vendor = "Acer"
 match_dmi = "VX5-591G"
 

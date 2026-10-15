@@ -98,7 +98,7 @@ pub fn select(
             let path = root.join("profiles").join(name).join("profile.toml");
             let content = source
                 .read_manifest(&path)?
-                .ok_or_else(|| format!("Perfil sem profile.toml: {name}"))?;
+                .ok_or_else(|| format!("Profile {name} has no profile.toml"))?;
             profile::parse(name, &content)
         })
         .transpose()?;
@@ -161,7 +161,7 @@ pub fn select(
         .find(|name| seen_official.contains(name.as_str()))
     {
         return Err(format!(
-            "Pacote {conflict} aparece nas listas oficial e AUR. Escolha apenas uma origem."
+            "Package {conflict} appears in both official and AUR lists. Choose one source."
         ));
     }
     if seen_official.contains("rustup") {
@@ -194,7 +194,7 @@ fn add_manifest(
             continue;
         }
         if !valid_package_name(package) {
-            return Err(format!("Pacote inválido em {}: {package}", path.display()));
+            return Err(format!("Invalid package in {}: {package}", path.display()));
         }
         packages.push(package.to_owned());
     }
@@ -311,7 +311,10 @@ mod tests {
         let source = FakeSource {
             files: HashMap::from([
                 (root.join("packages/official/base.txt"), "git\n".to_owned()),
-                (root.join("profiles/generic/profile.toml"), "name = \"generic\"\ndescription = \"Sem extras\"\n".to_owned()),
+                (
+                    root.join("profiles/generic/profile.toml"),
+                    "name = \"generic\"\ndescription = \"No extras\"\n".to_owned(),
+                ),
             ]),
             installed: HashSet::new(),
             pacman: false,
@@ -376,7 +379,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let default = select(&RepositorySource, root, &Category::DEFAULT, None).unwrap();
         assert_eq!(default.official.len(), 33);
-        assert_eq!(default.aur.len(), 9);
+        assert_eq!(default.aur.len(), 10);
         let development = select(&RepositorySource, root, &[Category::Development], None).unwrap();
         assert_eq!(development.aur, ["visual-studio-code-bin"]);
         let apps = select(&RepositorySource, root, &[Category::Apps], None).unwrap();
@@ -389,7 +392,12 @@ mod tests {
         assert_eq!(theme.official, ["inter-font", "ttf-fira-code"]);
         assert_eq!(
             theme.aur,
-            ["nordic-theme", "zafiro-icon-theme", "xcursor-hackneyed-light"]
+            [
+                "nordic-theme",
+                "zafiro-icon-theme",
+                "xcursor-hackneyed-light",
+                "xcursor-hackneyed-dark"
+            ]
         );
         let desktop = select(&RepositorySource, root, &[Category::Desktop], None).unwrap();
         assert_eq!(

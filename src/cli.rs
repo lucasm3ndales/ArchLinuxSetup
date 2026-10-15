@@ -1,20 +1,20 @@
 use std::ffi::OsString;
 
-pub const USAGE: &str = "Uso: archsetup <comando> [opções]
+pub const USAGE: &str = "Usage: archsetup <command> [options]
 
-Comandos:
-  link                  Cria o comando archsetup em ~/.local/bin
-  unlink                Remove apenas o comando e sua linha PATH
-  restore               Recupera configurações; --packages inclui pacotes registrados
-  doctor                Confere o sistema; --verbose mostra o diagnóstico completo
-  aur                   Instala o auxiliar paru para a AUR
-  pkg [categorias]      Instala pacotes oficiais e AUR
-  desktop               Configura o desktop (atualmente só Xfce)
-  profiles              Lista os perfis disponíveis
-  all                   Executa aur, pkg e desktop (requer Xfce)
+Commands:
+  link                  Link archsetup in ~/.local/bin
+  unlink                Remove the command and its PATH entry
+  restore               Restore settings; --packages includes tracked packages
+  doctor                Check the system; --verbose shows full diagnostics
+  aur                   Install the paru AUR helper
+  pkg [categories]      Install official and AUR packages
+  desktop               Configure the desktop (currently Xfce only)
+  profiles              List available profiles
+  all                   Run aur, pkg and desktop (requires Xfce)
 
-Use --dry-run em link, unlink, restore, aur, pkg, desktop ou all para ver a ação sem executá-la.
-Use archsetup help <comando> para ver opções e exemplos.";
+Use --dry-run with link, unlink, restore, aur, pkg, desktop or all to preview changes.
+Use archsetup help <command> for options and examples.";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -60,23 +60,22 @@ pub fn parse(mut args: Vec<OsString>) -> Result<Invocation, String> {
     let first = args.remove(0);
     let first = first
         .to_str()
-        .ok_or_else(|| "nome de comando inválido".to_owned())?;
+        .ok_or_else(|| "invalid command name".to_owned())?;
     if matches!(first, "help" | "-h" | "--help") {
         return match args.len() {
             0 => Ok(Invocation::Usage),
             1 if first == "help" => {
                 let name = args[0]
                     .to_str()
-                    .ok_or_else(|| "nome de comando inválido".to_owned())?;
+                    .ok_or_else(|| "invalid command name".to_owned())?;
                 Command::from_name(name)
                     .map(Invocation::Help)
-                    .ok_or_else(|| format!("comando desconhecido: {name}"))
+                    .ok_or_else(|| format!("unknown command: {name}"))
             }
-            _ => Err("help aceita somente um comando".to_owned()),
+            _ => Err("help accepts only one command".to_owned()),
         };
     }
-    let command =
-        Command::from_name(first).ok_or_else(|| format!("comando desconhecido: {first}"))?;
+    let command = Command::from_name(first).ok_or_else(|| format!("unknown command: {first}"))?;
     Ok(Invocation::Run(command, args))
 }
 
