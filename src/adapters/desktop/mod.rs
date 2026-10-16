@@ -124,7 +124,6 @@ impl LinuxDesktop {
             }
         }
         for path in [
-            "/usr/share/xfce4/panel/plugins/xfce4-verve-plugin.desktop",
             "/usr/share/xfce4/panel/plugins/applicationsmenu.desktop",
             "/usr/share/pixmaps/archlinux-logo.svg",
         ] {
@@ -192,7 +191,12 @@ impl LinuxDesktop {
                 }
             }
         }
-        for directory in [self.home.join(".icons"), self.home.join(".icons/default")] {
+        for directory in [
+            self.home.join(".icons"),
+            self.home.join(".icons/default"),
+            self.config_dir.join("gtk-3.0"),
+            self.config_dir.join("archsetup"),
+        ] {
             match fs::symlink_metadata(&directory) {
                 Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
                     return Err(format!("Invalid cursor directory: {}", directory.display()));
@@ -211,6 +215,8 @@ impl LinuxDesktop {
             self.config_dir.join("autostart/ksuperkey.desktop"),
             self.home.join(".Xresources"),
             self.home.join(".icons/default/index.theme"),
+            self.config_dir.join("gtk-3.0/gtk.css"),
+            self.config_dir.join("archsetup/panel-user.svg"),
         ] {
             match fs::symlink_metadata(&config_file) {
                 Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
@@ -270,9 +276,6 @@ impl LinuxDesktop {
                 ));
             }
         }
-        if !Path::new("/usr/share/xfce4/panel/plugins/kbdleds.desktop").is_file() {
-            return Err("Keyboard LEDs plugin missing; run archsetup pkg desktop.".to_owned());
-        }
         let plan = self.panel_plan()?;
         if !system::command_exists(plan.menu_command) {
             return Err(format!("Menu command missing: {}", plan.menu_command));
@@ -288,17 +291,36 @@ impl LinuxDesktop {
             })
             .transpose()?
             .unwrap_or(false);
-        run("sudo", &["-v"])?;
         println!("\n==> Configuring Xfce");
         self.configure_xfce()?;
-        if self.uses_ly() {
+        let ly_needed = self.uses_ly()
+            && fs::read_to_string("/etc/ly/config.ini")
+                .map(|current| desktop::render_ly(&current) != current)
+                .unwrap_or(true);
+        let natural = Path::new("/etc/X11/xorg.conf.d/90-archlinuxsetup-touchpad.conf");
+        let natural_needed = fs::read_to_string(natural)
+            .map(|current| current != desktop::NATURAL_SCROLL)
+            .unwrap_or(true);
+        let tapping_path = Path::new("/etc/X11/xorg.conf.d/91-archlinuxsetup-acer-tapping.conf");
+        let tapping_needed = tapping
+            && fs::read_to_string(tapping_path)
+                .map(|current| current != desktop::TAPPING)
+                .unwrap_or(true);
+        if ly_needed || natural_needed || tapping_needed {
+            run("sudo", &["-v"])?;
+        }
+        if ly_needed {
             println!("\n==> Configuring the Ly login screen");
             self.configure_ly()?;
         } else {
-            println!("\n==> Login: current display manager preserved (no greeter changes).");
+            println!("\n==> Login: already configured or current display manager preserved.");
         }
-        println!("\n==> Configuring the touchpad");
-        self.configure_touchpad(tapping)?;
+        if natural_needed || tapping_needed {
+            println!("\n==> Configuring the touchpad");
+            self.configure_touchpad(tapping)?;
+        } else {
+            println!("\n==> Touchpad is already configured.");
+        }
         println!("\nComplete: desktop configured.");
         Ok(())
     }

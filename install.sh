@@ -34,8 +34,18 @@ elif ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; t
     packages+=(rustup)
 fi
 
-printf '==> Updating Arch and preparing Git, build tools and Rust\n'
-sudo pacman -Syu --needed --noconfirm "${packages[@]}"
+missing_packages=()
+for package in "${packages[@]}"; do
+    if ! pacman -Qq "$package" >/dev/null 2>&1; then
+        missing_packages+=("$package")
+    fi
+done
+if (( ${#missing_packages[@]} > 0 )); then
+    printf '==> Updating Arch and installing missing build tools: %s\n' "${missing_packages[*]}"
+    sudo pacman -Syu --needed --noconfirm "${missing_packages[@]}"
+else
+    printf '==> Build tools are already installed; skipping package update\n'
+fi
 
 if command -v rustup >/dev/null 2>&1 \
     && ! pacman -Qq rust >/dev/null 2>&1; then

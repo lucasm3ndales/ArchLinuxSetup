@@ -31,7 +31,9 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
                 options.profile = Some(profile.into_owned());
             }
             "-h" | "--help" => return Ok(None),
-            _ => return Err("desktop accepts only --profile NAME and --dry-run".to_owned()),
+            _ => {
+                return Err("desktop accepts only --profile NAME and --dry-run".to_owned());
+            }
         }
         index += 1;
     }
@@ -41,6 +43,7 @@ fn parse_args(args: &[OsString]) -> Result<Option<Options>, String> {
 pub fn help() -> i32 {
     println!("Usage: archsetup desktop [--profile NAME] [--dry-run]\n");
     println!("Configures Xfce and the X11 touchpad; adjusts Ly if enabled.");
+    println!("Existing settings are skipped; sudo is used only for missing system changes.");
     println!("Run as a regular user in an Xfce X11 session.");
     println!("The optional profile applies only compatible hardware settings.");
     0
@@ -91,10 +94,10 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
     );
     println!("Profile: {}", options.profile.as_deref().unwrap_or("none"));
     println!(
-        "  Xfce: Nordic, Zafiro Dark icons, Hackneyed cursor, fonts, panel, search, lock-key indicators, workspaces and Super key."
+        "  Xfce: Nordic, Zafiro Dark icons, Hackneyed cursor, dark 40px panel, filled Arch menu button, icon-only tasks (Docklike hover previews when installed), native workspaces, crisp white user icon, larger menus and clock, Super key, and volume/media keys."
     );
     if linux.uses_ly() {
-        println!("  Login: Matrix animation and date/time in Ly.");
+        println!("  Login: DOOM fire animation and date/time in Ly; Xfce handles session locking.");
     } else {
         println!("  Login: current display manager preserved; no greeter changes.");
     }
@@ -180,6 +183,7 @@ mod tests {
             .unwrap();
         assert_eq!(options.profile.as_deref(), Some("acer"));
         assert!(options.dry_run);
+        assert!(parse_args(&["--xfce-only".into()]).is_err());
         assert!(parse_args(&["--profile".into()]).is_err());
         assert!(parse_args(&["theme".into()]).is_err());
     }

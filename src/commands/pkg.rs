@@ -118,7 +118,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         eprintln!("Error: {error}");
         return 1;
     }
-    let helper = if selection.aur.is_empty() {
+    let helper = if selection.aur.iter().all(|package| linux.installed(package)) {
         None
     } else {
         match ensure_aur_helper(&linux) {
@@ -129,16 +129,25 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
             }
         }
     };
-    let tracker = match PackageTracker::begin(&home, state_home.as_deref()) {
-        Ok(tracker) => tracker,
-        Err(error) => {
-            eprintln!("Error: {error}");
-            return 1;
+    let packages_missing = selection
+        .official
+        .iter()
+        .chain(selection.aur.iter())
+        .any(|name| !linux.installed(name));
+    let tracker = if packages_missing {
+        match PackageTracker::begin(&home, state_home.as_deref()) {
+            Ok(tracker) => Some(tracker),
+            Err(error) => {
+                eprintln!("Error: {error}");
+                return 1;
+            }
         }
+    } else {
+        None
     };
     let result = linux.apply(&selection, helper);
-    let tracked = tracker.finish();
-    if let Ok(count) = &tracked {
+    let tracked = tracker.map(PackageTracker::finish).transpose();
+    if let Ok(Some(count)) = &tracked {
         if *count > 0 {
             println!("New packages tracked for possible removal: {count}");
         }
@@ -161,7 +170,7 @@ pub fn run(root: &Path, args: &[OsString]) -> i32 {
         .collect::<Vec<_>>()
         .join(" ");
     println!(
-        "\nComplete: categories {categories} processed. Installed packages are skipped by --needed."
+        "\nComplete: categories {categories} processed. Already installed packages were skipped."
     );
     0
 }

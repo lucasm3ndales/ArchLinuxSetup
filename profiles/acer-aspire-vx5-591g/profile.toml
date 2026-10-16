@@ -4,7 +4,6 @@ match_vendor = "Acer"
 match_dmi = "VX5-591G"
 
 [packages.official]
-desktop = ["blueman"]
 gaming = ["lib32-mesa", "lib32-vulkan-intel"]
 
 [packages.aur]

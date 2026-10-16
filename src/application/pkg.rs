@@ -9,6 +9,17 @@ pub trait PackageSource {
     fn installed(&self, package: &str) -> bool;
 }
 
+pub fn missing_packages<'a>(
+    packages: &'a [String],
+    installed: impl Fn(&str) -> bool,
+) -> Vec<&'a str> {
+    packages
+        .iter()
+        .filter(|name| !installed(name))
+        .map(String::as_str)
+        .collect()
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Category {
     Base,
@@ -223,6 +234,16 @@ fn add_packages(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn repeat_installation_has_no_missing_packages() {
+        let selected = vec!["git".to_owned(), "blueman".to_owned()];
+        assert!(missing_packages(&selected, |_| true).is_empty());
+        assert_eq!(
+            missing_packages(&selected, |name| name == "git"),
+            vec!["blueman"]
+        );
+    }
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -378,8 +399,8 @@ mod tests {
         }
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let default = select(&RepositorySource, root, &Category::DEFAULT, None).unwrap();
-        assert_eq!(default.official.len(), 33);
-        assert_eq!(default.aur.len(), 10);
+        assert_eq!(default.official.len(), 36);
+        assert_eq!(default.aur.len(), 9);
         let development = select(&RepositorySource, root, &[Category::Development], None).unwrap();
         assert_eq!(development.aur, ["visual-studio-code-bin"]);
         let apps = select(&RepositorySource, root, &[Category::Apps], None).unwrap();
@@ -407,9 +428,12 @@ mod tests {
                 "xorg-xauth",
                 "xf86-input-libinput",
                 "alsa-utils",
-                "xdg-desktop-portal-gtk"
+                "xdg-desktop-portal-gtk",
+                "xfce4-docklike-plugin",
+                "xfce4-pulseaudio-plugin",
+                "blueman"
             ]
         );
-        assert_eq!(desktop.aur, ["ksuperkey", "xfce4-kbdleds-plugin"]);
+        assert_eq!(desktop.aur, ["ksuperkey"]);
     }
 }

@@ -8,6 +8,203 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 impl LinuxDesktop {
+    pub(super) fn xfce_is_current(&self) -> Result<bool, String> {
+        let plan = self.panel_plan()?;
+        if !plan.remove_panels.is_empty()
+            || plan.legacy_genmon_id.is_some()
+            || plan.remove_legacy_marker
+            || plan.remove_kbdleds_marker
+        {
+            return Ok(false);
+        }
+        let panel = format!("/panels/panel-{}", plan.top_id);
+        let menu = format!("/plugins/plugin-{}", plan.menu_id);
+        let windows = format!("/plugins/plugin-{}", plan.windowlist_id);
+        let pager = format!("/plugins/plugin-{}", plan.pager_id);
+        let systray = format!("/plugins/plugin-{}", plan.systray_id);
+        let audio = format!("/plugins/plugin-{}", plan.pulseaudio_id);
+        let actions = format!("/plugins/plugin-{}", plan.actions_id);
+        let clock = format!("/plugins/plugin-{}", plan.clock_id);
+        let workspace_count = maybe_output(
+            "xfconf-query",
+            &["-c", "xfwm4", "-p", "/general/workspace_count"],
+        )
+        .and_then(|value| value.parse::<u32>().ok());
+        let pager_rows = if workspace_count.is_some_and(|count| count >= 4) {
+            "2"
+        } else {
+            "1"
+        };
+        let mut checks = vec![
+            ("xsettings", "/Net/ThemeName".to_owned(), "Nordic"),
+            ("xsettings", "/Net/IconThemeName".to_owned(), "zafiro-dark"),
+            ("xsettings", "/Gtk/CursorThemeName".to_owned(), "Hackneyed"),
+            ("xsettings", "/Gtk/CursorThemeSize".to_owned(), "24"),
+            ("xsettings", "/Gtk/FontName".to_owned(), "Inter 10"),
+            ("xfwm4", "/general/theme".to_owned(), "Nordic"),
+            (
+                "xfwm4",
+                "/general/title_font".to_owned(),
+                "Inter SemiBold 10",
+            ),
+            (
+                "xfce4-keyboard-shortcuts",
+                "/commands/custom/<Alt>F1".to_owned(),
+                plan.menu_command,
+            ),
+            ("xfce4-panel", "/panels/dark-mode".to_owned(), "true"),
+            ("xfce4-panel", format!("{panel}/position"), "p=6;x=0;y=0"),
+            ("xfce4-panel", format!("{panel}/length"), "100"),
+            ("xfce4-panel", format!("{panel}/size"), "40"),
+            ("xfce4-panel", format!("{panel}/icon-size"), "28"),
+            ("xfce4-panel", format!("{panel}/background-style"), "0"),
+            ("xfce4-panel", format!("{panel}/autohide-behavior"), "0"),
+            ("xfce4-panel", format!("{panel}/position-locked"), "true"),
+            ("xfce4-panel", menu.clone(), plan.menu_type),
+            (
+                "xfce4-panel",
+                format!("{menu}/button-icon"),
+                "/usr/share/pixmaps/archlinux-logo.svg",
+            ),
+            ("xfce4-panel", format!("{menu}/show-button-title"), "false"),
+            ("xfce4-panel", windows.clone(), plan.windowlist_type),
+            ("xfce4-panel", pager.clone(), "pager"),
+            ("xfce4-panel", format!("{pager}/miniature-view"), "true"),
+            ("xfce4-panel", format!("{pager}/rows"), pager_rows),
+            ("xfce4-panel", systray.clone(), "systray"),
+            ("xfce4-panel", format!("{systray}/hide-new-items"), "false"),
+            ("xfce4-panel", audio.clone(), "pulseaudio"),
+            (
+                "xfce4-panel",
+                format!("{audio}/enable-keyboard-shortcuts"),
+                "true",
+            ),
+            ("xfce4-panel", format!("{audio}/enable-mpris"), "true"),
+            (
+                "xfce4-panel",
+                format!("{audio}/enable-multimedia-keys"),
+                "true",
+            ),
+            ("xfce4-panel", actions.clone(), "actions"),
+            ("xfce4-panel", format!("{actions}/appearance"), "1"),
+            ("xfce4-panel", format!("{actions}/button-title"), "3"),
+            ("xfce4-panel", format!("{actions}/custom-title"), ""),
+            ("xfce4-panel", clock.clone(), "clock"),
+            ("xfce4-panel", format!("{clock}/mode"), "2"),
+            (
+                "xfce4-panel",
+                format!("{clock}/digital-format"),
+                "%d/%m %H:%M",
+            ),
+            ("xfce4-panel", format!("{clock}/digital-layout"), "3"),
+            (
+                "xfce4-panel",
+                format!("{clock}/digital-time-format"),
+                "%d/%m %H:%M",
+            ),
+            (
+                "xfce4-panel",
+                format!("{clock}/digital-time-font"),
+                "Inter Medium 11",
+            ),
+        ];
+        if plan.menu_type == "applicationsmenu" {
+            checks.push(("xfce4-panel", format!("{menu}/small"), "false"));
+        }
+        if plan.windowlist_type == "tasklist" {
+            checks.extend([
+                ("xfce4-panel", format!("{windows}/grouping"), "true"),
+                (
+                    "xfce4-panel",
+                    format!("{windows}/include-all-workspaces"),
+                    "false",
+                ),
+                ("xfce4-panel", format!("{windows}/show-labels"), "false"),
+            ]);
+        }
+        for (channel, property, expected) in checks {
+            if maybe_output("xfconf-query", &["-c", channel, "-p", &property]).as_deref()
+                != Some(expected)
+            {
+                return Ok(false);
+            }
+        }
+        for (id, expand) in [
+            (plan.spacer_id, true),
+            (plan.pager_gap_id, false),
+            (plan.status_gap_id, false),
+            (plan.session_gap_id, false),
+        ] {
+            let path = format!("/plugins/plugin-{id}");
+            for (property, expected) in [
+                (path.clone(), "separator"),
+                (
+                    format!("{path}/expand"),
+                    if expand { "true" } else { "false" },
+                ),
+                (format!("{path}/style"), "0"),
+            ] {
+                if maybe_output("xfconf-query", &["-c", "xfce4-panel", "-p", &property]).as_deref()
+                    != Some(expected)
+                {
+                    return Ok(false);
+                }
+            }
+        }
+        let actual_ids = maybe_output(
+            "xfconf-query",
+            &["-c", "xfce4-panel", "-p", &format!("{panel}/plugin-ids")],
+        )
+        .map(|value| parse_ids(&value));
+        if actual_ids.as_deref() != Some(plan.plugin_order.as_slice()) {
+            return Ok(false);
+        }
+        for (path, render) in [
+            (
+                self.home.join(".Xresources"),
+                desktop::render_xresources as fn(&str) -> String,
+            ),
+            (
+                self.home.join(".icons/default/index.theme"),
+                desktop::render_cursor_index as fn(&str) -> String,
+            ),
+            (
+                self.config_dir.join("gtk-3.0/gtk.css"),
+                desktop::render_panel_css as fn(&str) -> String,
+            ),
+            (
+                self.config_dir.join("archsetup/panel-user.svg"),
+                desktop::render_panel_user_svg as fn(&str) -> String,
+            ),
+        ] {
+            let Ok(current) = fs::read_to_string(path) else {
+                return Ok(false);
+            };
+            if render(&current) != current {
+                return Ok(false);
+            }
+        }
+        if plan.windowlist_type == "docklike" {
+            let path = self
+                .config_dir
+                .join(format!("xfce4/panel/docklike-{}.rc", plan.windowlist_id));
+            let Ok(current) = fs::read_to_string(path) else {
+                return Ok(false);
+            };
+            if desktop::render_docklike_rc(&current) != current {
+                return Ok(false);
+            }
+        }
+        if fs::read_to_string(self.config_dir.join("autostart/ksuperkey.desktop"))
+            .ok()
+            .as_deref()
+            != Some(desktop::AUTOSTART)
+        {
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
     pub(super) fn panel_plan(&self) -> Result<PanelPlan, String> {
         let values =
             capture("xfconf-query", &["-c", "xfce4-panel", "-p", "/panels"]).map_err(|_| {
@@ -65,10 +262,32 @@ impl LinuxDesktop {
         let kbdleds_path = format!("/panels/panel-{}/archlinuxsetup-kbdleds-id", top.id);
         let legacy = read_id(&legacy_path);
         let recorded = read_id(&kbdleds_path);
-        desktop::plan_panels(&panels, &plugin_types, max_id, legacy, recorded)
+        let docklike_available =
+            Path::new("/usr/share/xfce4/panel/plugins/docklike.desktop").is_file();
+        desktop::plan_panels(
+            &panels,
+            &plugin_types,
+            max_id,
+            legacy,
+            recorded,
+            docklike_available,
+        )
     }
 
     pub(super) fn configure_xfce(&self) -> Result<(), String> {
+        if self.xfce_is_current()? {
+            println!("Xfce is already configured; no panel restart needed.");
+            let uid = system::effective_uid()?.to_string();
+            if !success("pgrep", &["-u", &uid, "-x", "ksuperkey"])? {
+                Command::new("ksuperkey")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .map_err(|error| format!("could not start ksuperkey: {error}"))?;
+            }
+            return Ok(());
+        }
         let plan = self.panel_plan()?;
         println!("\n==> Saving current configuration");
         let backup = self.backup_xfce()?;
@@ -118,6 +337,7 @@ impl LinuxDesktop {
             set_array("xfce4-panel", "/panels", "int", &[plan.top_id.to_string()])?;
         }
         let panel = format!("/panels/panel-{}", plan.top_id);
+        set_property("xfce4-panel", "/panels/dark-mode", "bool", "true")?;
         set_property(
             "xfce4-panel",
             &format!("{panel}/position"),
@@ -125,7 +345,14 @@ impl LinuxDesktop {
             "p=6;x=0;y=0",
         )?;
         set_property("xfce4-panel", &format!("{panel}/length"), "uint", "100")?;
-        set_property("xfce4-panel", &format!("{panel}/size"), "uint", "48")?;
+        set_property("xfce4-panel", &format!("{panel}/size"), "uint", "40")?;
+        set_property("xfce4-panel", &format!("{panel}/icon-size"), "uint", "28")?;
+        set_property(
+            "xfce4-panel",
+            &format!("{panel}/background-style"),
+            "uint",
+            "0",
+        )?;
         set_property(
             "xfce4-panel",
             &format!("{panel}/autohide-behavior"),
@@ -152,52 +379,77 @@ impl LinuxDesktop {
             "bool",
             "false",
         )?;
-        set_property(
-            "xfce4-panel",
-            &format!("/plugins/plugin-{}", plan.search_id),
-            "string",
-            "verve",
-        )?;
-        let tasklist = format!("/plugins/plugin-{}", plan.tasklist_id);
-        set_property("xfce4-panel", &tasklist, "string", "tasklist")?;
-        set_property(
-            "xfce4-panel",
-            &format!("{tasklist}/grouping"),
-            "bool",
-            "true",
-        )?;
-        set_property(
-            "xfce4-panel",
-            &format!("{tasklist}/include-all-workspaces"),
-            "bool",
-            "false",
-        )?;
+        if plan.menu_type == "applicationsmenu" {
+            set_property("xfce4-panel", &format!("{menu}/small"), "bool", "false")?;
+        }
+        let windowlist = format!("/plugins/plugin-{}", plan.windowlist_id);
+        set_property("xfce4-panel", &windowlist, "string", plan.windowlist_type)?;
+        if plan.windowlist_type == "tasklist" {
+            set_property(
+                "xfce4-panel",
+                &format!("{windowlist}/grouping"),
+                "bool",
+                "true",
+            )?;
+            set_property(
+                "xfce4-panel",
+                &format!("{windowlist}/include-all-workspaces"),
+                "bool",
+                "false",
+            )?;
+            set_property(
+                "xfce4-panel",
+                &format!("{windowlist}/show-labels"),
+                "bool",
+                "false",
+            )?;
+        } else {
+            self.configure_docklike_rc(plan.windowlist_id, &backup)?;
+        }
+        configure_separator(plan.spacer_id, true)?;
+        configure_separator(plan.pager_gap_id, false)?;
+        configure_separator(plan.status_gap_id, false)?;
+        configure_separator(plan.session_gap_id, false)?;
         let pager = format!("/plugins/plugin-{}", plan.pager_id);
         set_property("xfce4-panel", &pager, "string", "pager")?;
         set_property(
             "xfce4-panel",
             &format!("{pager}/miniature-view"),
             "bool",
-            "false",
+            "true",
         )?;
-        set_property("xfce4-panel", &format!("{pager}/rows"), "uint", "1")?;
-        set_property(
-            "xfce4-panel",
-            &format!("{pager}/numbering"),
-            "bool",
-            "false",
-        )?;
-        if let Some(count) = maybe_output(
+        let workspace_count = maybe_output(
             "xfconf-query",
             &["-c", "xfwm4", "-p", "/general/workspace_count"],
         )
-        .and_then(|value| value.parse::<u32>().ok())
-        .filter(|count| (1..=20).contains(count))
-        {
-            let names = (1..=count)
-                .map(|index| index.to_string())
-                .collect::<Vec<_>>();
-            set_array("xfwm4", "/general/workspace_names", "string", &names)?;
+        .and_then(|value| value.parse::<u32>().ok());
+        let pager_rows = if workspace_count.is_some_and(|count| count >= 4) {
+            "2"
+        } else {
+            "1"
+        };
+        set_property("xfce4-panel", &format!("{pager}/rows"), "uint", pager_rows)?;
+        let systray = format!("/plugins/plugin-{}", plan.systray_id);
+        set_property("xfce4-panel", &systray, "string", "systray")?;
+        set_property(
+            "xfce4-panel",
+            &format!("{systray}/hide-new-items"),
+            "bool",
+            "false",
+        )?;
+        let audio = format!("/plugins/plugin-{}", plan.pulseaudio_id);
+        set_property("xfce4-panel", &audio, "string", "pulseaudio")?;
+        for property in [
+            "enable-keyboard-shortcuts",
+            "enable-mpris",
+            "enable-multimedia-keys",
+        ] {
+            set_property(
+                "xfce4-panel",
+                &format!("{audio}/{property}"),
+                "bool",
+                "true",
+            )?;
         }
         if let Some(id) = plan.legacy_genmon_id {
             let path = format!("/plugins/plugin-{id}");
@@ -213,17 +465,27 @@ impl LinuxDesktop {
                 &["-c", "xfce4-panel", "-p", &path, "--reset"],
             )?;
         }
+        if plan.remove_kbdleds_marker {
+            let path = format!("{panel}/archlinuxsetup-kbdleds-id");
+            run(
+                "xfconf-query",
+                &["-c", "xfce4-panel", "-p", &path, "--reset"],
+            )?;
+        }
+        let actions = format!("/plugins/plugin-{}", plan.actions_id);
+        set_property("xfce4-panel", &actions, "string", "actions")?;
+        set_property("xfce4-panel", &format!("{actions}/appearance"), "uint", "1")?;
         set_property(
             "xfce4-panel",
-            &format!("/plugins/plugin-{}", plan.keylock_id),
-            "string",
-            "kbdleds",
+            &format!("{actions}/button-title"),
+            "uint",
+            "3",
         )?;
         set_property(
             "xfce4-panel",
-            &format!("{panel}/archlinuxsetup-kbdleds-id"),
-            "int",
-            &plan.keylock_id.to_string(),
+            &format!("{actions}/custom-title"),
+            "string",
+            "",
         )?;
         let clock = format!("/plugins/plugin-{}", plan.clock_id);
         set_property("xfce4-panel", &clock, "string", "clock")?;
@@ -233,6 +495,24 @@ impl LinuxDesktop {
             &format!("{clock}/digital-format"),
             "string",
             "%d/%m %H:%M",
+        )?;
+        set_property(
+            "xfce4-panel",
+            &format!("{clock}/digital-layout"),
+            "uint",
+            "3",
+        )?;
+        set_property(
+            "xfce4-panel",
+            &format!("{clock}/digital-time-format"),
+            "string",
+            "%d/%m %H:%M",
+        )?;
+        set_property(
+            "xfce4-panel",
+            &format!("{clock}/digital-time-font"),
+            "string",
+            "Inter Medium 11",
         )?;
         let ids = plan
             .plugin_order
@@ -244,7 +524,7 @@ impl LinuxDesktop {
         println!("\n==> Enabling the Super key in Xfce");
         self.configure_ksuperkey(&backup)?;
         println!(
-            "\nComplete: single panel, search, current-workspace tasks, date/time clock and indicators configured."
+            "\nComplete: single panel, native workspace previews, current-workspace tasks, session menu and date/time clock configured."
         );
         Ok(())
     }
@@ -290,6 +570,16 @@ impl LinuxDesktop {
                 "cursor-index.original",
                 desktop::render_cursor_index as fn(&str) -> String,
             ),
+            (
+                self.config_dir.join("gtk-3.0/gtk.css"),
+                "panel-gtk-css.original",
+                desktop::render_panel_css as fn(&str) -> String,
+            ),
+            (
+                self.config_dir.join("archsetup/panel-user.svg"),
+                "panel-user.svg.original",
+                desktop::render_panel_user_svg as fn(&str) -> String,
+            ),
         ] {
             if source.is_file() {
                 let current = fs::read_to_string(&source)
@@ -315,6 +605,16 @@ impl LinuxDesktop {
                 desktop::render_cursor_index as fn(&str) -> String,
                 "cursor-index.created",
             ),
+            (
+                self.config_dir.join("gtk-3.0/gtk.css"),
+                desktop::render_panel_css as fn(&str) -> String,
+                "panel-gtk-css.created",
+            ),
+            (
+                self.config_dir.join("archsetup/panel-user.svg"),
+                desktop::render_panel_user_svg as fn(&str) -> String,
+                "panel-user.svg.created",
+            ),
         ] {
             let existed = target.is_file();
             let current = if existed {
@@ -336,6 +636,47 @@ impl LinuxDesktop {
                     format!("could not configure {}: {error}", target.display())
                 })?;
             }
+        }
+        Ok(())
+    }
+
+    fn configure_docklike_rc(&self, id: u32, backup: &Path) -> Result<(), String> {
+        let target = self
+            .config_dir
+            .join(format!("xfce4/panel/docklike-{id}.rc"));
+        if fs::symlink_metadata(&target)
+            .is_ok_and(|metadata| !metadata.is_file() || metadata.file_type().is_symlink())
+        {
+            return Err(format!(
+                "Invalid Docklike configuration: {}",
+                target.display()
+            ));
+        }
+        let existed = target.is_file();
+        let current = if existed {
+            fs::read_to_string(&target)
+                .map_err(|error| format!("could not read {}: {error}", target.display()))?
+        } else {
+            String::new()
+        };
+        let updated = desktop::render_docklike_rc(&current);
+        if updated != current {
+            fs::create_dir_all(target.parent().ok_or("invalid Docklike path")?)
+                .map_err(|error| format!("could not create Docklike directory: {error}"))?;
+            let backup_name = if existed {
+                format!("docklike-{id}.rc.original")
+            } else {
+                format!("docklike-{id}.rc.created")
+            };
+            if existed {
+                fs::copy(&target, backup.join(backup_name))
+                    .map_err(|error| format!("could not save Docklike configuration: {error}"))?;
+            } else {
+                fs::write(backup.join(backup_name), &updated)
+                    .map_err(|error| format!("could not record Docklike configuration: {error}"))?;
+            }
+            fs::write(&target, updated)
+                .map_err(|error| format!("could not configure Docklike: {error}"))?;
         }
         Ok(())
     }
@@ -385,6 +726,9 @@ fn read_id(path: &str) -> Option<u32> {
 }
 
 fn set_property(channel: &str, property: &str, kind: &str, value: &str) -> Result<(), String> {
+    if maybe_output("xfconf-query", &["-c", channel, "-p", property]).as_deref() == Some(value) {
+        return Ok(());
+    }
     run(
         "xfconf-query",
         &[
@@ -393,7 +737,31 @@ fn set_property(channel: &str, property: &str, kind: &str, value: &str) -> Resul
     )
 }
 
+fn configure_separator(id: u32, expand: bool) -> Result<(), String> {
+    let plugin = format!("/plugins/plugin-{id}");
+    set_property("xfce4-panel", &plugin, "string", "separator")?;
+    set_property(
+        "xfce4-panel",
+        &format!("{plugin}/expand"),
+        "bool",
+        if expand { "true" } else { "false" },
+    )?;
+    set_property("xfce4-panel", &format!("{plugin}/style"), "uint", "0")
+}
+
 fn set_array(channel: &str, property: &str, kind: &str, values: &[String]) -> Result<(), String> {
+    if maybe_output("xfconf-query", &["-c", channel, "-p", property])
+        .map(|value| {
+            parse_ids(&value)
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+        })
+        .as_deref()
+        == Some(values)
+    {
+        return Ok(());
+    }
     let mut args = vec![
         "-c".to_owned(),
         channel.to_owned(),

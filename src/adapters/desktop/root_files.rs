@@ -13,7 +13,7 @@ impl LinuxDesktop {
             .map_err(|error| format!("could not read {}: {error}", config.display()))?;
         let work = TempWorkDir::new()?;
         self.update_root_file(config, &desktop::render_ly(&original), "archsetup", &work)?;
-        println!("Ly is configured to show Matrix animation and date/time at the next login.");
+        println!("Ly is configured to show DOOM fire animation and date/time at the next login.");
         Ok(())
     }
 
@@ -66,8 +66,20 @@ impl LinuxDesktop {
             .map_err(|error| format!("could not prepare {}: {error}", target.display()))?;
         let source_text = source.to_string_lossy();
         let target_text = target.to_string_lossy();
-        if metadata.is_some() && success("sudo", &["cmp", "-s", "--", &source_text, &target_text])?
-        {
+        let unchanged = if metadata.is_some() {
+            match fs::read(target) {
+                Ok(current) => current == content.as_bytes(),
+                Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                    success("sudo", &["cmp", "-s", "--", &source_text, &target_text])?
+                }
+                Err(error) => {
+                    return Err(format!("could not read {}: {error}", target.display()));
+                }
+            }
+        } else {
+            false
+        };
+        if unchanged {
             println!("Already configured: {}", target.display());
             return Ok(false);
         }

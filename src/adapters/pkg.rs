@@ -1,7 +1,7 @@
 use crate::adapters::linux::LinuxInspector;
 use crate::application::doctor;
 use crate::application::pkg::{
-    Category, NVIDIA_580XX_CONFLICTS, PackageSource, RustProvider, Selection,
+    self, Category, NVIDIA_580XX_CONFLICTS, PackageSource, RustProvider, Selection,
 };
 use crate::system;
 use std::fs::{self, OpenOptions};
@@ -106,21 +106,30 @@ impl LinuxPkg {
     }
 
     pub fn apply(&self, selection: &Selection, helper: Option<&str>) -> Result<(), String> {
-        println!("\n==> Updating the system and installing official packages");
-        run("sudo", &["-v"])?;
-        let mut args = vec!["pacman", "-Syu", "--needed", "--noconfirm"];
-        args.extend(selection.official.iter().map(String::as_str));
-        run("sudo", &args)?;
+        let missing_official =
+            pkg::missing_packages(&selection.official, |name| self.installed(name));
+        if missing_official.is_empty() {
+            println!("\n==> Official packages are already installed; skipping system update.");
+        } else {
+            println!("\n==> Updating the system and installing missing official packages");
+            run("sudo", &["-v"])?;
+            let mut args = vec!["pacman", "-Syu", "--needed", "--noconfirm"];
+            args.extend(missing_official);
+            run("sudo", &args)?;
+        }
 
         if selection.includes(Category::Development) {
             self.configure_docker()?;
         }
-        if !selection.aur.is_empty() {
+        let missing_aur = pkg::missing_packages(&selection.aur, |name| self.installed(name));
+        if !missing_aur.is_empty() {
             let helper = helper.ok_or("AUR helper unavailable after checking the dependency")?;
-            println!("\n==> Installing AUR packages with {helper}");
+            println!("\n==> Installing missing AUR packages with {helper}");
             let mut args = vec!["-S", "--needed", "--noconfirm"];
-            args.extend(selection.aur.iter().map(String::as_str));
+            args.extend(missing_aur);
             run(helper, &args)?;
+        } else {
+            println!("\n==> AUR packages are already installed.");
         }
         if selection.includes(Category::Apps) {
             self.configure_browser()?;
@@ -187,7 +196,7 @@ impl LinuxPkg {
             println!("Docker is already running.");
         } else {
             run("sudo", &["systemctl", "start", "docker.service"])?;
-            println!("Docker iniciado.");
+            println!("Docker started.");
         }
         Ok(())
     }

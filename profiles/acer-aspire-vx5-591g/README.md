@@ -1,6 +1,6 @@
 # Acer Aspire VX5-591G
 
-Este perfil cobre a família Aspire VX5-591G, sem depender do sufixo usado em uma variante regional. O ArchSetup compara `Acer` com o fabricante informado pelo DMI e `VX5-591G` com o nome do modelo. O perfil só é aplicado quando você passa `--profile acer-aspire-vx5-591g`.
+This profile covers the Aspire VX5-591G family regardless of regional model suffixes. ArchSetup compares `Acer` with the DMI vendor and `VX5-591G` with the model name. The profile applies only when you pass `--profile acer-aspire-vx5-591g`.
 
 ```bash
 archsetup doctor --profile acer-aspire-vx5-591g
@@ -8,21 +8,20 @@ archsetup pkg --profile acer-aspire-vx5-591g --dry-run
 archsetup desktop --profile acer-aspire-vx5-591g --dry-run
 ```
 
-`doctor` pode sugerir o perfil automaticamente, mas não o seleciona. Confira a prévia antes da instalação. O comando `desktop` exige Xfce instalado e uma sessão X11 do Xfce ativa.
+`doctor` may suggest this profile, but it never selects it automatically. Review the preview before installing. `desktop` requires an installed Xfce desktop and an active Xfce X11 session.
 
-## O que o perfil acrescenta
+## What the profile adds
 
-| Categoria | Pacotes adicionais |
+| Category | Additional packages |
 | --- | --- |
-| `desktop` | `blueman` |
 | `gaming` | `lib32-mesa`, `lib32-vulkan-intel`, `nvidia-580xx-dkms`, `nvidia-580xx-utils`, `lib32-nvidia-580xx-utils` |
 
-Ao executar `archsetup desktop --profile acer-aspire-vx5-591g`, o perfil ativa toque para clicar no touchpad. A rolagem natural é uma configuração comum do comando `desktop` e também funciona sem perfil.
+`archsetup desktop --profile acer-aspire-vx5-591g` enables tap-to-click on the touchpad. Natural scrolling is a shared `desktop` setting and also works without a profile.
 
-Os pacotes e o ajuste estão declarados em [profile.toml](profile.toml). `pkg gaming` seleciona headers de acordo com os kernels instalados porque inclui o driver NVIDIA DKMS; `pkg base` sozinho não os instala. Para `linux` e `linux-zen`, serão selecionados `linux-headers` e `linux-zen-headers`. A categoria `gaming` exige `[multilib]` habilitado. `blueman` oferece interface gráfica para o Bluetooth já ativado no sistema; os pacotes Intel e NVIDIA de 32 bits atendem jogos que usam uma ou outra GPU.
+The packages and setting are declared in [profile.toml](profile.toml). `pkg gaming` selects headers for the installed kernels because the category includes an NVIDIA DKMS driver; `pkg base` alone does not install them. For `linux` and `linux-zen`, it selects `linux-headers` and `linux-zen-headers`. The `gaming` category requires `[multilib]`. The shared `desktop` category includes Blueman for Bluetooth management and Docklike for grouped window previews; the 32-bit Intel and NVIDIA packages support games using either GPU.
 
-## Antes de usar
+## Before using the profile
 
-O identificador DMI cobre o modelo base, mas as variantes podem ter componentes diferentes. **Use `pkg gaming` com este perfil apenas se o equipamento tiver GPU Intel e NVIDIA GTX 10xx/Pascal**, como a GTX 1050. Confirme com `lspci -nn | grep -Ei 'VGA|3D'`. O ArchSetup recusa drivers oficiais NVIDIA incompatíveis já instalados e não os remove automaticamente. O ramo 580xx é distribuído pela AUR; confira o PKGBUILD e a compilação DKMS antes de reiniciar. O perfil não configura PRIME, boot, criptografia, energia ou snapshots. Para usar a GPU dedicada sob X11, consulte a documentação PRIME do Arch após instalar o driver.
+The DMI identifier covers the base model, but variants may have different components. **Use `pkg gaming` with this profile only if the machine has an Intel GPU and an NVIDIA GTX 10xx/Pascal GPU**, such as the GTX 1050. Check with `lspci -nn | grep -Ei 'VGA|3D'`. ArchSetup rejects conflicting official NVIDIA drivers and does not remove them automatically. The 580xx branch is distributed through the AUR; review the PKGBUILD and DKMS build before rebooting. The profile does not configure PRIME, boot, encryption, power management, or snapshots. To use the dedicated GPU under X11, consult the Arch PRIME documentation after installing the driver.
 
-O perfil não reinstala nem substitui Btrfs, LUKS, Snapper, zram, Limine, NetworkManager, PipeWire, serviços de Bluetooth, impressão, energia ou firewall escolhidos na instalação do sistema. Pacotes já presentes são ignorados com `--needed`. `desktop` configura o Xfce e o touchpad e ajusta o Ly quando ele está habilitado.
+The profile does not reinstall or replace Btrfs, LUKS, Snapper, zram, Limine, NetworkManager, PipeWire, or Bluetooth, printing, power, and firewall services selected during system installation. Already installed packages are skipped with `--needed`. `desktop` configures Xfce and the touchpad and adjusts Ly when it is enabled.

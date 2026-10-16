@@ -1,18 +1,18 @@
 # ArchSetup
 
-ArchSetup é uma ferramenta de pós-instalação para Arch Linux. Ela instala pacotes por categoria, aplica uma configuração pronta para Xfce e permite acrescentar ajustes específicos de um equipamento por meio de perfis.
+ArchSetup is a post-installation tool for Arch Linux. It installs packages by category, configures an Xfce desktop, and supports hardware-specific settings through profiles.
 
-O ArchSetup parte de um sistema já instalado. Ele não instala o Arch Linux nem configura discos, criptografia, boot ou snapshots.
+ArchSetup starts with an already installed system. It does not install Arch Linux or configure disks, encryption, bootloaders, or snapshots.
 
-## Antes de começar
+## Before you start
 
-- Use o Arch Linux com acesso à internet e `sudo`.
-- Execute os comandos como usuário comum, sem `sudo` na frente de `archsetup` ou `./install.sh`.
-- Para usar `desktop` ou `all`, tenha o Xfce instalado e entre em uma sessão X11 do Xfce. O ArchSetup configura o ambiente, mas não instala o Xfce.
+- Use Arch Linux with internet access and `sudo`.
+- Run commands as a regular user. Do not put `sudo` before `archsetup` or `./install.sh`.
+- To use `desktop` or `all`, install Xfce and log into an Xfce X11 session first. ArchSetup configures Xfce but does not install it.
 
-## Instalação
+## Installation
 
-Instale o Git, clone o repositório e execute o instalador:
+Install Git, clone the repository, and run the installer:
 
 ```bash
 sudo pacman -Syu --needed git
@@ -21,30 +21,30 @@ cd ArchLinuxSetup
 ./install.sh
 ```
 
-O instalador prepara o que for necessário, compila a ferramenta e disponibiliza o comando `archsetup`. Abra um novo terminal e confira a instalação:
+The installer prepares only missing prerequisites, builds the tool, and makes the `archsetup` command available. Repeating it skips the package update when prerequisites are installed. Open a new terminal and check the installation:
 
 ```bash
 archsetup doctor
 ```
 
-Mantenha a pasta do repositório no lugar: o comando instalado aponta para ela.
+Keep the repository in place: the installed command points to its build directory.
 
-## Primeiro uso
+## First use
 
-Para conferir o sistema e ver o que uma configuração completa faria:
+Check the system and preview a complete setup:
 
 ```bash
 archsetup doctor
 archsetup all --dry-run
 ```
 
-Se quiser instalar as categorias padrão e configurar o Xfce, execute:
+To install the default package categories and configure Xfce, run:
 
 ```bash
 archsetup all
 ```
 
-`all` executa `aur`, `pkg` e `desktop`, nessa ordem. Ele exige uma sessão X11 do Xfce desde o início. Para escolher somente algumas categorias, use `pkg`:
+`all` runs `aur`, `pkg`, and `desktop`, in that order. An Xfce X11 session is required before it starts. To install selected categories instead, use `pkg`:
 
 ```bash
 archsetup pkg base development --dry-run
@@ -52,104 +52,110 @@ archsetup pkg base development
 archsetup pkg gaming
 ```
 
-Você pode executar uma categoria depois das outras ou repetir um comando. Pacotes já instalados são ignorados; uma nova execução de `pkg` também pode atualizar pacotes do sistema.
+You can run categories separately or repeat a command. Already installed packages are skipped. `pkg` updates the system only when it needs to install missing official packages; use `pacman -Syu` separately for routine updates.
 
-## Comandos
+## Commands
 
-| Comando | O que faz |
+| Command | Purpose |
 | --- | --- |
-| `archsetup doctor` | Confere o sistema e mostra avisos, sem alterá-lo. |
-| `archsetup profiles` | Lista os perfis disponíveis. |
-| `archsetup aur` | Instala o auxiliar `paru`, usado para pacotes da AUR. |
-| `archsetup pkg [CATEGORIA...]` | Instala pacotes oficiais e da AUR das categorias escolhidas. |
-| `archsetup desktop` | Aplica a configuração do Xfce, do painel e do touchpad. |
-| `archsetup all` | Executa `aur`, `pkg` e `desktop`. |
-| `archsetup restore` | Recupera configurações anteriores com backup feito pelo ArchSetup. |
-| `archsetup link` | Cria ou atualiza o comando `archsetup`; o instalador já faz isso. |
-| `archsetup unlink` | Remove o comando instalado, sem desfazer as configurações. |
-| `archsetup help [COMANDO]` | Mostra a ajuda geral ou de um comando. |
+| `archsetup doctor` | Check the system and report warnings without changing it. |
+| `archsetup profiles` | List available profiles. |
+| `archsetup aur` | Install the `paru` AUR helper. |
+| `archsetup pkg [CATEGORY...]` | Install official and AUR packages from the selected categories. |
+| `archsetup desktop` | Configure Xfce, its panel, and the touchpad. |
+| `archsetup all` | Run `aur`, `pkg`, and `desktop`. |
+| `archsetup restore` | Restore settings from ArchSetup backups. |
+| `archsetup link` | Create or update the `archsetup` command; the installer already does this. |
+| `archsetup unlink` | Remove the installed command without undoing the settings. |
+| `archsetup help [COMMAND]` | Show general or command-specific help. |
 
-Se `pkg` precisar de pacotes da AUR e não encontrar um auxiliar, ele oferecerá executar `aur` antes de continuar. `desktop` também pode oferecer a instalação das categorias `desktop` e `theme` quando faltarem pacotes necessários.
+If `pkg` needs AUR packages and no helper is available, it offers to run `aur` first. If `desktop` is missing required packages, it can offer to install the `desktop` and `theme` categories.
 
-## Opções
+## Options
 
-| Opção | Onde usar | Efeito |
+| Option | Commands | Effect |
 | --- | --- | --- |
-| `--dry-run` | `link`, `unlink`, `restore`, `aur`, `pkg`, `desktop`, `all` | Mostra uma prévia sem alterar o sistema. |
-| `--profile NOME` | `doctor`, `pkg`, `desktop`, `all` | Seleciona um perfil explicitamente. |
-| `--verbose` | `doctor` | Mostra um diagnóstico mais detalhado. |
-| `--packages` | `restore` | Inclui a remoção de pacotes registrados como novos pelo ArchSetup. |
-| `--help` ou `-h` | Comandos | Mostra a ajuda do comando. |
+| `--dry-run` | `link`, `unlink`, `restore`, `aur`, `pkg`, `desktop`, `all` | Preview changes without modifying the system. |
+| `--profile NAME` | `doctor`, `pkg`, `desktop`, `all` | Explicitly select a profile. |
+| `--verbose` | `doctor` | Show more detailed diagnostics. |
+| `--packages` | `restore` | Also remove packages recorded as newly installed by ArchSetup. |
+| `--help` or `-h` | Commands | Show help for a command. |
 
-## Categorias de pacotes
+## Package categories
 
-`archsetup pkg` sem categoria usa `base development apps theme desktop`. `gaming` e `emulation` são opcionais e precisam ser solicitadas pelo nome. O comando `all` usa as mesmas categorias padrão.
+With no category argument, `archsetup pkg` selects `base development apps theme desktop`. `gaming` and `emulation` must be requested by name. `all` uses the same default categories.
 
-| Categoria | Finalidade |
+| Category | Purpose |
 | --- | --- |
-| `base` | Ferramentas gerais de terminal. |
-| `development` | Ferramentas de desenvolvimento e containers. |
-| `apps` | Aplicativos do dia a dia. |
-| `theme` | Fontes, tema, ícones e cursor. |
-| `desktop` | Utilitários necessários à configuração do Xfce. |
-| `gaming` | Jogos e ferramentas relacionadas. |
-| `emulation` | Emuladores. |
+| `base` | General command-line tools. |
+| `development` | Development and container tools. |
+| `apps` | Everyday applications. |
+| `theme` | Fonts, theme, icons, and cursors. |
+| `desktop` | Xfce utilities including Docklike window previews, PulseAudio-compatible volume and media keys, Blueman Bluetooth management, and `ksuperkey`; keyboard LED indicators are no longer installed. |
+| `gaming` | Games and related tools. |
+| `emulation` | Emulators. |
 
-Cada categoria pode reunir pacotes dos repositórios [oficiais](packages/official/) e da [AUR](packages/aur/). Abra essas pastas para ver a lista exata de pacotes antes de instalar.
+Each category can include packages from the [official repositories](packages/official/) and the [AUR](packages/aur/). Review those files for the exact package list before installing.
 
-`pkg desktop` instala utilitários para o ambiente; `archsetup desktop` aplica a configuração. Nenhum dos dois instala o Xfce. Para a categoria `gaming`, habilite `[multilib]` no pacman antes de instalar.
+`archsetup pkg desktop` installs desktop utilities; `archsetup desktop` applies the configuration. Neither installs Xfce. Enable `[multilib]` in pacman before installing the `gaming` category.
 
-## Perfis
+## Profiles
 
-Um perfil acrescenta pacotes ou ajustes para um equipamento específico. Sem `--profile`, o ArchSetup usa apenas as categorias compartilhadas. O perfil `generic` representa explicitamente essa mesma escolha; perfis de hardware são aplicados somente quando você os seleciona e o equipamento é compatível.
+A profile adds packages or settings for a specific machine. Without `--profile`, ArchSetup uses only shared package lists. The `generic` profile explicitly makes the same choice. Hardware profiles apply only when selected and when the machine matches.
 
 ```bash
 archsetup profiles
 archsetup doctor
-archsetup pkg --profile NOME --dry-run
-archsetup pkg --profile NOME
+archsetup pkg --profile NAME --dry-run
+archsetup pkg --profile NAME
 ```
 
-`doctor` pode sugerir um perfil compatível, mas não o seleciona automaticamente. O mesmo `--profile NOME` também funciona com `desktop` e `all`. Veja os perfis disponíveis em [profiles](profiles/).
+`doctor` may suggest a compatible profile but never selects one automatically. `--profile NAME` also works with `desktop` and `all`. See the available [profiles](profiles/).
 
-## Configuração do desktop
+A profile is a TOML file at `profiles/NAME/profile.toml`. It has a required `name` and `description`; hardware profiles also use `match_vendor` and `match_dmi`. Optional `[packages.official]` and `[packages.aur]` tables map category names to package arrays. The optional `[desktop]` table supports `touchpad_tapping = true`. Unknown fields are rejected. See the [Acer profile](profiles/acer-aspire-vx5-591g/profile.toml) for an example.
 
-`archsetup desktop` configura o Xfce com Nordic, ícones Zafiro Dark, cursor Hackneyed e um painel superior com menu, busca e espaços de trabalho numerados. Também ajusta atalhos e o touchpad. Se Ly estiver habilitado, ativa a animação Matrix e mostra data e hora no login. Outros gerenciadores são preservados.
+## Desktop configuration
 
-Execute o comando dentro de uma sessão X11 do Xfce:
+`archsetup desktop` configures Xfce with Nordic, Zafiro Dark icons, Hackneyed cursors, and a compact 40-pixel dark top panel. The Arch menu occupies a filled button at the left edge. Open applications appear as icons; when Docklike is installed, hovering over an icon shows its windows with previews, including a single open window. The native tasklist remains the fallback until Docklike is installed. The panel uses compact native workspace previews and preserves Xfce's workspace names and count. The session menu uses a crisp white vector user icon based on Zafiro Dark, while the menus, calendar, and clock use larger text and spacing. Invisible spacing separates workspaces, status icons, session menu, and clock. The old keyboard LED indicator and Verve search plugin are omitted. Blueman provides a Bluetooth manager and tray applet after installation; its package supplies Xfce autostart. The command also sets shortcuts and touchpad behavior. If Ly is enabled, it sets the DOOM fire animation and displays the date and time on the login screen. Xfce's screensaver handles inactivity locks and preserves the running session; Ly is used for new logins. Other display managers are left unchanged. Repeating `desktop` skips matching Xfce settings, avoids a panel restart, and only requests `sudo` if a system file needs to change.
+
+The status tray keeps existing icons. Click its arrow to expand hidden background app icons along the panel; use the tray item's Xfce preferences to choose which known icons stay visible. New icons remain visible by default so NetworkManager's changing Wi-Fi label does not unexpectedly hide the network icon. The tray shows apps that provide a status icon, not every running process.
+
+The Xfce audio plugin handles the notebook's volume and media Fn keys through PipeWire's PulseAudio-compatible service. It controls playback in applications that expose MPRIS, including supported browsers and music players.
+
+Run it inside an Xfce X11 session:
 
 ```bash
 archsetup desktop --dry-run
 archsetup desktop
 ```
 
-O ArchSetup guarda cópias das configurações que altera para permitir a restauração.
+ArchSetup backs up settings before changing them so they can be restored.
 
-## Restaurar ou remover
+## Restore or unlink
 
-Para conferir e recuperar configurações anteriores, saia da sessão gráfica do Xfce e use um TTY:
+To preview and restore previous settings, leave the graphical Xfce session and use a TTY:
 
 ```bash
 archsetup restore --dry-run
 archsetup restore
 ```
 
-Para incluir os pacotes, revise a prévia antes de executar a remoção:
+To include packages, review the preview before removing them:
 
 ```bash
 archsetup restore --packages --dry-run
 archsetup restore --packages
 ```
 
-Essa opção considera somente os pacotes registrados como novos pelo ArchSetup. Ela não reverte atualizações de pacotes que já existiam nem restaura o sistema inteiro. Para remover apenas o comando e manter as configurações, use `archsetup unlink`.
+`--packages` considers only packages recorded as new by ArchSetup. It does not reverse updates to existing packages or restore the entire system. To remove only the installed command and keep the settings, use `archsetup unlink`.
 
-## Atualizar o ArchSetup
+## Update ArchSetup
 
-Na pasta do repositório:
+From the repository directory:
 
 ```bash
 git pull
 ./install.sh
 ```
 
-O instalador atualiza o sistema, recompila a ferramenta e mantém o comando apontando para a versão atual. Se quiser apenas consultar a sintaxe disponível, use `archsetup help` ou `archsetup help pkg`.
+The installer updates the system, rebuilds the tool, and keeps the installed command pointed at the current build. Use `archsetup help` or `archsetup help pkg` to check the available syntax.

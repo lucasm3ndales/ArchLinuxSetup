@@ -1,6 +1,7 @@
 use crate::adapters::file_backup;
 use crate::application::restore::{self, DockerBefore, RootAction};
 use crate::system;
+use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -69,6 +70,42 @@ impl LinuxRestore {
         }
         backups.sort();
         Ok(backups.into_iter().next())
+    }
+
+    fn docklike_backup_names(&self) -> Result<Vec<String>, String> {
+        let mut names = BTreeSet::new();
+        for backup in directory_entries(&self.backup_base())? {
+            if !backup
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("xfce-"))
+                || !is_real_directory(&backup)
+            {
+                continue;
+            }
+            for file in directory_entries(&backup)? {
+                let Some(file_name) = file
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(str::to_owned)
+                else {
+                    continue;
+                };
+                let stem = file_name
+                    .strip_suffix(".original")
+                    .or_else(|| file_name.strip_suffix(".created"));
+                let Some(stem) = stem else { continue };
+                let Some(id) = stem
+                    .strip_prefix("docklike-")
+                    .and_then(|name| name.strip_suffix(".rc"))
+                else {
+                    continue;
+                };
+                if !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()) {
+                    names.insert(stem.to_owned());
+                }
+            }
+        }
+        Ok(names.into_iter().collect())
     }
 
     pub fn installed_packages(&self) -> Result<Vec<String>, String> {
@@ -245,11 +282,24 @@ impl LinuxRestore {
             for (target, name) in [
                 (self.home.join(".Xresources"), "Xresources"),
                 (self.home.join(".icons/default/index.theme"), "cursor-index"),
+                (self.config_home.join("gtk-3.0/gtk.css"), "panel-gtk-css"),
+                (
+                    self.config_home.join("archsetup/panel-user.svg"),
+                    "panel-user.svg",
+                ),
             ] {
                 if let Some(cursor_backup) = self.oldest_cursor_backup(name)? {
                     reject_symlink_or_other(&target)?;
                     reject_symlink_or_other(&cursor_backup.join(format!("{name}.original")))?;
                     reject_symlink_or_other(&cursor_backup.join(format!("{name}.created")))?;
+                }
+            }
+            for name in self.docklike_backup_names()? {
+                let target = self.config_home.join("xfce4/panel").join(&name);
+                if let Some(saved) = self.oldest_cursor_backup(&name)? {
+                    reject_symlink_or_other(&target)?;
+                    reject_symlink_or_other(&saved.join(format!("{name}.original")))?;
+                    reject_symlink_or_other(&saved.join(format!("{name}.created")))?;
                 }
             }
         }
@@ -322,6 +372,11 @@ impl LinuxRestore {
         for (target, name) in [
             (self.home.join(".Xresources"), "Xresources"),
             (self.home.join(".icons/default/index.theme"), "cursor-index"),
+            (self.config_home.join("gtk-3.0/gtk.css"), "panel-gtk-css"),
+            (
+                self.config_home.join("archsetup/panel-user.svg"),
+                "panel-user.svg",
+            ),
         ] {
             if let Some(cursor_backup) = self.oldest_cursor_backup(name)? {
                 let original = cursor_backup.join(format!("{name}.original"));
@@ -336,6 +391,27 @@ impl LinuxRestore {
                     } else {
                         println!(
                             "Cursor: {} changed after installation; file preserved.",
+                            target.display()
+                        );
+                    }
+                }
+            }
+        }
+        for name in self.docklike_backup_names()? {
+            let target = self.config_home.join("xfce4/panel").join(&name);
+            if let Some(saved) = self.oldest_cursor_backup(&name)? {
+                let original = saved.join(format!("{name}.original"));
+                let created = saved.join(format!("{name}.created"));
+                if original.is_file() {
+                    self.restore_user_file(&target, &original, restore_backup)?;
+                } else if created.is_file() && target.is_file() {
+                    let current = fs::read(&target).map_err(|error| error.to_string())?;
+                    let expected = fs::read(&created).map_err(|error| error.to_string())?;
+                    if current == expected {
+                        self.restore_user_file(&target, &original, restore_backup)?;
+                    } else {
+                        println!(
+                            "Docklike: {} changed after installation; file preserved.",
                             target.display()
                         );
                     }
